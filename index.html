@@ -1,0 +1,1104 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="color-scheme" content="light dark"><style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0}img{max-width:100%}</style></head><body>
+<title>Perchy</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&family=Atkinson+Hyperlegible:wght@400;700&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+/* Layout: a single-column phone app with a sticky header and tab bar; cards split into two columns on tablets. */
+:root{
+  --bg:#eef3ea; --surface:#ffffff; --sunk:#e3eadd; --ink:#1b281d; --muted:#586a5b; --line:#d3ddcd;
+  --green:#3a8a2b; --green-ink:#ffffff; --yellow:#e9b923; --cere:#3566ad; --warn:#b2452f;
+  --overlay:rgba(6,10,7,.97);
+  --display:"Bricolage Grotesque", "Avenir Next", system-ui, sans-serif;
+  --body:"Atkinson Hyperlegible", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono:"JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+  --r:14px;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#101611; --surface:#18211a; --sunk:#202b22; --ink:#e5eee1; --muted:#9bab98; --line:#2d3a2e;
+  --green:#79c95b; --green-ink:#0f1a0f; --yellow:#f2cc4d; --cere:#7ea8e8; --warn:#ef8a72; --overlay:rgba(0,0,0,.97); color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#101611; --surface:#18211a; --sunk:#202b22; --ink:#e5eee1; --muted:#9bab98; --line:#2d3a2e;
+  --green:#79c95b; --green-ink:#0f1a0f; --yellow:#f2cc4d; --cere:#7ea8e8; --warn:#ef8a72; --overlay:rgba(0,0,0,.97); color-scheme:dark}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+body{background:var(--bg);color:var(--ink);font-family:var(--body);font-size:16px;line-height:1.5}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:10;background:var(--bg)}
+.app{max-width:1040px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:0 48px}
+h1,h2,h3{font-family:var(--display);text-wrap:balance;margin:0;line-height:1.15}
+h2{font-size:1.25rem;font-weight:700}
+h3{font-size:1.02rem;font-weight:700}
+p{margin:0}
+.muted{color:var(--muted)}
+.small{font-size:.86rem}
+.mono{font-family:var(--mono);font-variant-numeric:tabular-nums}
+.top{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--bg);display:flex;flex-wrap:wrap;gap:12px;align-items:center;justify-content:space-between;padding-block:14px 10px}
+.brand{display:flex;gap:10px;align-items:center}
+.brand h1{font-size:1.6rem;font-weight:800;letter-spacing:-.01em}
+.brand .tag{font-size:.82rem;color:var(--muted)}
+.status{display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+.pill{display:inline-flex;align-items:center;gap:6px;font-size:.78rem;font-weight:700;letter-spacing:.04em;text-transform:uppercase;padding:4px 10px;border-radius:999px;background:var(--sunk);color:var(--muted)}
+.pill::before{content:"";width:8px;height:8px;border-radius:50%;background:currentColor}
+.pill.on{color:var(--green)}
+.pill.quiet{color:var(--cere)}
+.pill.ex{color:var(--yellow);background:transparent;border:1px dashed var(--yellow)}
+.pill.ex::before{display:none}
+.vol{display:flex;gap:8px;align-items:center;font-size:.85rem;color:var(--muted)}
+.vol input{width:110px}
+.tabs{flex-basis:100%;display:flex;gap:4px;overflow-x:auto;padding-block:4px 10px;scrollbar-width:none}
+.tabs button{flex:0 0 auto;border:0;background:transparent;color:var(--muted);font:700 .92rem var(--body);padding:8px 14px;border-radius:999px;cursor:pointer}
+.tabs button[aria-selected="true"]{background:var(--ink);color:var(--bg)}
+.panel{display:grid;gap:14px}
+.grid2{display:grid;gap:14px;grid-template-columns:repeat(auto-fit,minmax(min(100%,420px),1fr));align-items:start}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:16px;display:grid;gap:12px;min-width:0}
+.card.hero{background:linear-gradient(135deg,var(--surface),var(--sunk))}
+.row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.row.between{justify-content:space-between}
+.stack{display:grid;gap:8px}
+button.btn{border:1px solid var(--line);background:var(--surface);color:var(--ink);font:700 .92rem var(--body);padding:9px 14px;border-radius:10px;cursor:pointer;min-height:40px}
+button.btn:hover{border-color:var(--muted)}
+button.btn.primary{background:var(--green);border-color:var(--green);color:var(--green-ink)}
+button.btn.big{font-size:1.05rem;padding:13px 22px;border-radius:12px}
+button.btn.ghost{background:transparent}
+button.btn.danger{color:var(--warn)}
+button.btn:disabled{opacity:.45;cursor:not-allowed}
+:focus-visible{outline:3px solid var(--cere);outline-offset:2px}
+input[type=text],input[type=time],input[type=number],select{font:inherit;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:9px;padding:7px 10px;min-height:40px;max-width:100%}
+input[type=number]{width:76px}
+input[type=range]{accent-color:var(--green)}
+label.field{display:grid;gap:4px;font-size:.85rem;color:var(--muted)}
+.switch{display:flex;gap:10px;align-items:center;cursor:pointer;font-weight:700}
+.switch input{width:20px;height:20px;accent-color:var(--green)}
+.note{border-left:4px solid var(--yellow);background:var(--sunk);padding:10px 12px;border-radius:8px;font-size:.9rem}
+.note.info{border-color:var(--cere)}
+.flock-wrap{position:relative;background:radial-gradient(ellipse at 50% 85%,var(--sunk),transparent 70%);border-radius:12px;overflow:hidden}
+#flock{display:block;width:100%;aspect-ratio:4/3;max-width:100%;max-height:52vh}
+.meter{height:10px;border-radius:6px;background:var(--sunk);overflow:hidden}
+.meter i{display:block;height:100%;width:0;background:var(--green);transition:width .08s linear}
+.kv{display:grid;grid-template-columns:auto 1fr;gap:4px 14px;font-size:.92rem}
+.kv dt{color:var(--muted)}
+.kv dd{margin:0;font-family:var(--mono);font-variant-numeric:tabular-nums}
+.bar{height:8px;border-radius:5px;background:var(--sunk);overflow:hidden}
+.bar i{display:block;height:100%;background:var(--yellow)}
+.list{display:grid;gap:8px;margin:0;padding:0;list-style:none}
+.item{display:flex;gap:10px;align-items:center;justify-content:space-between;flex-wrap:wrap;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:var(--bg);min-width:0}
+.item .name{font-weight:700;min-width:0;overflow-wrap:anywhere}
+.chips{display:flex;gap:6px;flex-wrap:wrap}
+.chip{font-size:.82rem;background:var(--sunk);border-radius:999px;padding:3px 10px;display:inline-flex;gap:6px;align-items:center}
+.chip button{border:0;background:none;color:var(--muted);cursor:pointer;font-size:1rem;line-height:1;padding:0}
+.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px}
+.tile{background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:10px 12px}
+.tile b{display:block;font-family:var(--display);font-size:1.6rem;line-height:1.1;font-variant-numeric:tabular-nums}
+.tile span{font-size:.8rem;color:var(--muted);text-transform:uppercase;letter-spacing:.05em}
+.chart{width:100%;overflow-x:auto}
+.chart svg{display:block;width:100%;min-width:320px;height:auto}
+.chart text{fill:var(--muted);font:20px var(--mono)}
+table.log{width:100%;border-collapse:collapse;font-size:.88rem;font-variant-numeric:tabular-nums}
+table.log th{text-align:left;color:var(--muted);font-weight:700;font-size:.75rem;text-transform:uppercase;letter-spacing:.05em;padding:6px 8px;border-bottom:1px solid var(--line)}
+table.log td{padding:6px 8px;border-bottom:1px solid var(--line);font-family:var(--mono)}
+.tablewrap{overflow-x:auto}
+.word{display:grid;gap:8px;padding:12px;border:1px solid var(--line);border-radius:12px;background:var(--bg)}
+.word .w{font-family:var(--display);font-size:1.3rem;font-weight:700}
+.stage{font-size:.75rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;padding:2px 8px;border-radius:999px;background:var(--sunk);color:var(--muted)}
+.stage.s1{color:var(--cere)}.stage.s2{color:var(--yellow)}.stage.s3{color:var(--green)}
+.confirm{display:flex;gap:8px;align-items:center;flex-wrap:wrap;font-size:.9rem}
+#dim{position:fixed;inset:0;z-index:50;background:var(--overlay);color:#cfd8cc;display:grid;place-items:center;text-align:center;padding:max(24px,env(safe-area-inset-top,0px)) max(24px,env(safe-area-inset-right,0px)) max(24px,env(safe-area-inset-bottom,0px)) max(24px,env(safe-area-inset-left,0px))}
+#dim h2{color:#e6ecdf;font-size:1.6rem}
+#dim .stack{max-width:380px;gap:14px}
+#dim button{background:transparent;color:#cfd8cc;border:1px solid #4a5a4a;border-radius:10px;font:700 .95rem var(--body);padding:10px 16px;cursor:pointer}
+#toast{position:fixed;left:50%;bottom:calc(18px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:10px;font-size:.92rem;z-index:60;max-width:calc(100% - 32px);opacity:0;pointer-events:none;transition:opacity .2s}
+#toast.show{opacity:1}
+.rec-dot{width:12px;height:12px;border-radius:50%;background:var(--warn);display:inline-block;animation:pulse 1s infinite}
+@keyframes pulse{50%{opacity:.3}}
+@media (prefers-reduced-motion: reduce){.rec-dot{animation:none}.meter i{transition:none}}
+</style>
+
+<div class="app">
+  <header class="top">
+    <div class="brand">
+      <svg width="40" height="40" viewBox="0 0 40 40" aria-hidden="true"><circle cx="20" cy="20" r="19" fill="var(--sunk)"/><ellipse cx="22" cy="25" rx="9" ry="11" fill="#4fa83a"/><circle cx="17" cy="14" r="7" fill="#f2cf3a"/><circle cx="15" cy="13" r="1.6" fill="#1b281d"/><path d="M10.5 15 q-3 2 -1 5 q2 -1 3 -3z" fill="#c9b07a"/><ellipse cx="11.8" cy="13.8" rx="1.8" ry="1.2" fill="#3566ad"/></svg>
+      <div><h1>Perchy</h1><p class="tag">A flockmate for your budgie</p></div>
+    </div>
+    <div class="status">
+      <span id="statusPill" class="pill">Asleep</span>
+      <label class="vol" for="vol">Volume <input type="range" id="vol" min="0" max="100" step="1"></label>
+    </div>
+    <nav class="tabs" role="tablist" aria-label="Sections" hidden>
+    <button role="tab" data-tab="listen" aria-selected="true">Talk back</button>
+    <button role="tab" data-tab="voice" aria-selected="false">Your voice</button>
+    <button role="tab" data-tab="rhythm" aria-selected="false">Daily rhythm</button>
+    <button role="tab" data-tab="log" aria-selected="false">Call log</button>
+    <button role="tab" data-tab="train" aria-selected="false">Talk training</button>
+  </nav>
+  </header>
+
+
+  <main>
+    <!-- TALK BACK -->
+    <section id="tab-listen" class="panel" role="tabpanel">
+      <div class="card hero">
+        <div class="flock-wrap"><canvas id="flock" aria-label="Perchy, an animated budgie"></canvas></div>
+        <div class="row between">
+          <div class="stack" style="flex:1 1 220px;min-width:0">
+            <h2 id="wakeTitle">Perchy is asleep</h2>
+            <p class="muted small" id="wakeSub">Set this phone or tablet by the cage at perch height and wake Perchy. It listens for your budgie's calls and answers in its own soft budgie voice.</p>
+          </div>
+          <button class="btn primary big" id="wakeBtn">Wake Perchy</button>
+        </div>
+        <p class="note" id="micNote" hidden></p>
+        <div class="row between small muted"><label class="switch" for="flockOn" style="font-weight:400"><input type="checkbox" id="flockOn"> Show Perchy on screen</label><span>Turn this off if your bird fixates on the screen.</span></div>
+      </div>
+
+      <div class="grid2">
+        <div class="card">
+          <div class="row between">
+            <h2>Conversation</h2>
+            <label class="switch" for="answerBack"><input type="checkbox" id="answerBack"> Answer back</label>
+          </div>
+          <div class="stack">
+            <div class="row between small muted"><span>Sound near the cage</span><span id="levelTxt" class="mono">mic off</span></div>
+            <div class="meter" aria-hidden="true"><i id="levelBar"></i></div>
+          </div>
+          <dl class="kv">
+            <dt>Your bird</dt><dd id="lastCall">No calls heard yet</dd>
+            <dt>Perchy</dt><dd id="lastReply">Hasn't answered yet</dd>
+          </dl>
+          <div class="row">
+            <button class="btn" id="simBtn">Play a pretend call</button>
+            <button class="btn" id="callOutBtn">Call to your bird</button>
+          </div>
+          <div class="grid2" style="gap:10px">
+            <label class="field" for="sens">Listening sensitivity <input type="range" id="sens" min="0" max="100"></label>
+            <label class="field" for="drift">How fast Perchy picks up your bird's style
+              <select id="drift"><option value="slow">Slowly, over weeks</option><option value="medium">Steadily, over days</option><option value="fast">Quickly, within a day</option></select>
+            </label>
+          </div>
+          <p class="small muted">Replies stay soft and short, with at least a few seconds between them. Perchy never makes harsh or alarm-like calls, ignores its own sounds while listening, and can stay quiet overnight.</p>
+          <label class="switch" for="quietOn2"><input type="checkbox" id="quietOn2"> Stay quiet overnight (8:30 PM to 7 AM)</label>
+        </div>
+
+      </div>
+
+      <div class="card">
+        <div class="row between">
+          <h2>Perchy's dialect</h2>
+          <span class="small muted" id="dialectCount"></span>
+        </div>
+        <p class="small muted">Real flockmates slowly copy each other's calls. Perchy starts with its own voice and drifts toward the pitch, length and rhythm your bird uses most, without ever copying a call exactly.</p>
+        <div class="tiles" id="dialectTiles"></div>
+        <div class="stack">
+          <div class="row between small"><span class="muted">How much Perchy sounds like your bird</span><span class="mono" id="matPct">0%</span></div>
+          <div class="bar"><i id="matBar" style="width:0"></i></div>
+        </div>
+        <div class="row" id="resetDialectRow"><button class="btn ghost small" id="resetDialect">Reset to Perchy's own voice</button></div>
+      </div>
+    </section>
+
+    <!-- YOUR VOICE -->
+    <section id="tab-voice" class="panel" role="tabpanel" hidden>
+      <div class="grid2">
+        <div class="card">
+          <h2>Voice clips</h2>
+          <p class="small muted">Record short phrases your bird knows, like "Hi baby" or "I'm back soon". Five to ten seconds works best.</p>
+          <div class="row">
+            <button class="btn primary" id="recBtn">Record a clip</button>
+            <span id="recState" class="small muted"></span>
+            <label class="btn" for="fileIn" style="display:inline-flex;align-items:center;font:700 .92rem var(--body);padding:9px 14px;border:1px solid var(--line);border-radius:10px;cursor:pointer">Add audio file</label>
+            <input type="file" id="fileIn" accept="audio/*" multiple hidden>
+          </div>
+          <ul class="list" id="clipList"></ul>
+        </div>
+        <div class="card">
+          <h2>Playlists</h2>
+          <div class="row">
+            <input type="text" id="plName" placeholder="Playlist name, e.g. Afternoon hello" style="flex:1 1 200px;min-width:0">
+            <button class="btn" id="plAdd">Create</button>
+          </div>
+          <ul class="list" id="plList"></ul>
+        </div>
+      </div>
+      <div class="grid2">
+        <div class="card">
+          <h2>When your bird calls out</h2>
+          <label class="switch" for="trigOn"><input type="checkbox" id="trigOn"> Play a playlist when it keeps calling</label>
+          <div class="row small">
+            <span>After</span><input type="number" id="trigCount" min="2" max="30"><span>calls within</span><input type="number" id="trigMins" min="1" max="30"><span>minutes, play</span>
+            <select id="trigPl"></select>
+          </div>
+          <p class="small muted">Plays at most once every 15 minutes so your voice stays special.</p>
+        </div>
+        <div class="card">
+          <h2>On a schedule</h2>
+          <div class="row">
+            <input type="time" id="schTime" value="13:00">
+            <select id="schPl"></select>
+            <button class="btn" id="schAdd">Add time</button>
+          </div>
+          <ul class="list" id="schList"></ul>
+          <p class="small muted">Schedules run while Perchy is awake on this device. Keep it plugged in with the page open.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- RHYTHM -->
+    <section id="tab-rhythm" class="panel" role="tabpanel" hidden>
+      <div class="grid2">
+        <div class="card">
+          <div class="row between"><h2>Dawn chorus</h2><label class="switch" for="dawnOn"><input type="checkbox" id="dawnOn"> Daily</label></div>
+          <p class="small muted">A few soft chirps that build into a lively flock, like birds waking together.</p>
+          <div class="row">
+            <label class="field" for="dawnTime">Starts at <input type="time" id="dawnTime"></label>
+            <label class="field" for="dawnMins">Minutes <input type="number" id="dawnMins" min="2" max="30"></label>
+          </div>
+          <div class="row"><button class="btn" id="dawnNow">Play now</button><span class="small muted" id="dawnState"></span></div>
+        </div>
+        <div class="card">
+          <div class="row between"><h2>Bedtime calm</h2><label class="switch" for="bedOn"><input type="checkbox" id="bedOn"> Daily</label></div>
+          <p class="small muted">Sleepy, thinning chatter over a low hush, while the screen dims to dark. A good cue to cover the cage.</p>
+          <div class="row">
+            <label class="field" for="bedTime">Starts at <input type="time" id="bedTime"></label>
+            <label class="field" for="bedMins">Minutes <input type="number" id="bedMins" min="5" max="45"></label>
+          </div>
+          <div class="row"><button class="btn" id="bedNow">Start now</button></div>
+        </div>
+      </div>
+      <div class="card">
+        <label class="switch" for="quietOn"><input type="checkbox" id="quietOn"> Stay quiet overnight</label>
+        <p class="small muted" id="quietTxt"></p>
+        <p class="small muted">Budgies need about 10 to 12 hours of dark, quiet sleep. Perchy still logs calls overnight so you can see if your bird is restless.</p>
+      </div>
+    </section>
+
+    <!-- LOG -->
+    <section id="tab-log" class="panel" role="tabpanel" hidden>
+      <div class="card">
+        <div class="row between"><h2 id="logTitle">Today</h2><span id="exPill" class="pill ex" hidden>Example day. Your bird's real calls replace this.</span></div>
+        <div class="tiles" id="logTiles"></div>
+        <p id="logInsight" class="small"></p>
+        <div class="chart" id="hourChart"></div>
+      </div>
+      <div class="grid2">
+        <div class="card"><h2>Last 7 days</h2><div class="chart" id="weekChart"></div></div>
+        <div class="card">
+          <div class="row between"><h2>Recent calls</h2><div id="clearLogWrap"><button class="btn ghost danger small" id="clearLog">Clear log</button></div></div>
+          <div class="tablewrap"><table class="log"><thead><tr><th>Time</th><th>Length</th><th>Pitch</th><th>Notes</th><th>Perchy</th></tr></thead><tbody id="logRows"></tbody></table></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- TRAINING -->
+    <section id="tab-train" class="panel" role="tabpanel" hidden>
+      <div class="card">
+        <h2>Teach a word</h2>
+        <p class="small muted">Budgies learn best from short, frequent repeats in a voice they love. Record yourself saying the word in Your voice, then pick that clip here. Without a clip, Perchy uses the device's speaking voice.</p>
+        <div class="row">
+          <input type="text" id="wordIn" placeholder="Word or short phrase, e.g. Pretty bird" style="flex:1 1 220px;min-width:0">
+          <select id="wordClip"></select>
+          <button class="btn primary" id="wordAdd">Add word</button>
+        </div>
+        <div class="row small">
+          <label class="field" for="trReps">Repeats per session <input type="number" id="trReps" min="2" max="20"></label>
+          <label class="field" for="trGap">Seconds between repeats <input type="number" id="trGap" min="3" max="60"></label>
+          <label class="field" for="trTimes" style="flex:1;min-width:180px">Daily sessions at <input type="text" id="trTimes" placeholder="09:00, 18:00"></label>
+        </div>
+        <p class="small muted">Scheduled sessions practise the first word that isn't learned yet.</p>
+      </div>
+      <div class="grid2" id="wordList"></div>
+    </section>
+  </main>
+</div>
+
+<div id="dim" hidden>
+  <div class="stack">
+    <h2>Goodnight</h2>
+    <p>Bedtime calm is playing. Cover the cage when your bird settles.</p>
+    <p class="small" id="dimLeft"></p>
+    <div class="row" style="justify-content:center"><button id="dimStop">Stop bedtime</button><button id="dimHide">Show app</button></div>
+  </div>
+</div>
+<div id="toast" role="status" aria-live="polite"></div>
+
+<script>
+(() => {
+'use strict';
+// ---------- helpers ----------
+const $ = s => document.querySelector(s);
+const rand = (a, b) => a + Math.random() * (b - a);
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+const lerp = (a, b, t) => a + (b - a) * t;
+const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const uid = () => Math.random().toString(36).slice(2, 10);
+const pad = n => String(n).padStart(2, '0');
+const hhmm = d => pad(d.getHours()) + ':' + pad(d.getMinutes());
+const dayKey = d => d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
+const toMin = s => { const [h, m] = String(s).split(':').map(Number); return (h || 0) * 60 + (m || 0); };
+const fmtTime = t => new Date(t).toLocaleTimeString([], {hour: 'numeric', minute: '2-digit'});
+const fmtHour = h => { const d = new Date(); d.setHours(h, 0, 0, 0); return d.toLocaleTimeString([], {hour: 'numeric'}); };
+const kHz = f => (f / 1000).toFixed(1) + ' kHz';
+let toastT;
+function toast(msg) { const t = $('#toast'); t.textContent = msg; t.classList.add('show'); clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove('show'), 2600); }
+const reduceMotion = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+// Talk-back-only mode: other sections are hidden and their timers stay off.
+const FOCUS = true;
+// ---------- state ----------
+const BASE = {pitch: 3300, sylDur: 0.15, syl: 2, slope: 0.12};
+const DEFAULTS = {
+  settings: {volume: 55, answerBack: true, drift: 'medium', sensitivity: 55, flockmate: true,
+    dawn: {on: true, time: '07:00', mins: 10}, bed: {on: true, time: '20:30', mins: 15}, quiet: false,
+    trig: {on: false, count: 5, mins: 3, pl: ''}},
+  dialect: {n: 0, pitch: BASE.pitch, sylDur: BASE.sylDur, syl: BASE.syl, slope: BASE.slope},
+  log: [], playlists: [], schedules: [], words: [],
+  training: {reps: 5, gap: 8, times: '09:00, 18:00'}, ran: {}
+};
+let S;
+function load() {
+  let raw = null;
+  try { raw = JSON.parse(localStorage.getItem('perchy.v1') || 'null'); } catch (e) {}
+  S = JSON.parse(JSON.stringify(DEFAULTS));
+  if (raw) {
+    Object.assign(S, raw);
+    S.settings = Object.assign({}, DEFAULTS.settings, raw.settings || {});
+    ['dawn', 'bed', 'trig'].forEach(k => S.settings[k] = Object.assign({}, DEFAULTS.settings[k], (raw.settings || {})[k] || {}));
+    S.training = Object.assign({}, DEFAULTS.training, raw.training || {});
+  }
+}
+let saveT;
+function save() { clearTimeout(saveT); saveT = setTimeout(() => { try { localStorage.setItem('perchy.v1', JSON.stringify(S)); } catch (e) {} }, 300); }
+load();
+
+// ---------- clip storage (IndexedDB, falls back to memory) ----------
+const Clips = {
+  db: null, mem: new Map(), list: [], buffers: new Map(),
+  async open() {
+    try {
+      this.db = await new Promise((res, rej) => {
+        const r = indexedDB.open('perchy', 1);
+        r.onupgradeneeded = () => r.result.createObjectStore('clips', {keyPath: 'id'});
+        r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error);
+      });
+    } catch (e) { this.db = null; }
+    await this.refresh();
+  },
+  tx(mode) { return this.db.transaction('clips', mode).objectStore('clips'); },
+  async refresh() {
+    if (this.db) {
+      try { this.list = await new Promise((res, rej) => { const r = this.tx('readonly').getAll(); r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); }); }
+      catch (e) { this.list = [...this.mem.values()]; }
+    } else this.list = [...this.mem.values()];
+    this.list.sort((a, b) => a.created - b.created);
+  },
+  async put(c) {
+    this.mem.set(c.id, c);
+    if (this.db) { try { await new Promise((res, rej) => { const r = this.tx('readwrite').put(c); r.onsuccess = res; r.onerror = () => rej(r.error); }); } catch (e) {} }
+    await this.refresh();
+  },
+  async del(id) {
+    this.mem.delete(id); this.buffers.delete(id);
+    if (this.db) { try { await new Promise((res, rej) => { const r = this.tx('readwrite').delete(id); r.onsuccess = res; r.onerror = () => rej(r.error); }); } catch (e) {} }
+    await this.refresh();
+  },
+  get(id) { return this.list.find(c => c.id === id); }
+};
+
+// ---------- audio engine ----------
+let ctx = null, master = null;
+let outputUntil = 0; // performance.now() ms until which our own sound is playing
+function ensureAudio() {
+  if (!ctx) {
+    ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const comp = ctx.createDynamicsCompressor();
+    comp.threshold.value = -18; comp.ratio.value = 6;
+    master = ctx.createGain();
+    master.connect(comp); comp.connect(ctx.destination);
+    applyVolume();
+  }
+  if (ctx.state === 'suspended') ctx.resume();
+  return ctx;
+}
+function applyVolume() { if (master) master.gain.value = (S.settings.volume / 100) * 0.9; }
+function markOutput(ms) { outputUntil = Math.max(outputUntil, performance.now() + ms); }
+
+// A call is a list of syllables, each a short warbled tone with a pitch contour.
+function specFrom(p, jitter = 0.08) {
+  const n = clamp(Math.round(p.syl), 1, 4);
+  const syl = [];
+  for (let i = 0; i < n; i++) {
+    const f = clamp(p.pitch * (1 + rand(-jitter, jitter)) * (1 + 0.05 * Math.sin(i * 1.7)), 1900, 5200);
+    const slope = clamp(p.slope + rand(-0.08, 0.08), -0.45, 0.45);
+    syl.push({f0: f * (1 - slope / 2), f1: f * (1 + slope / 2), peak: f * (1 + Math.abs(slope) * 0.25 + 0.03),
+      dur: clamp(p.sylDur * (1 + rand(-0.15, 0.15)), 0.06, 0.32), gap: rand(0.06, 0.12)});
+  }
+  return {syl, warbleRate: rand(32, 58), warbleDepth: p.pitch * 0.028};
+}
+function playCall(spec, opts = {}) {
+  ensureAudio();
+  const level = Math.min(0.32, opts.level == null ? 0.26 : opts.level);
+  const harm = opts.harm == null ? 0.14 : opts.harm;
+  let t = ctx.currentTime + 0.03;
+  const t0 = t;
+  for (const s of spec.syl) {
+    const g = ctx.createGain(); g.connect(master);
+    g.gain.setValueAtTime(0, t);
+    g.gain.linearRampToValueAtTime(level, t + 0.012);
+    g.gain.setValueAtTime(level, t + s.dur - 0.025);
+    g.gain.linearRampToValueAtTime(0, t + s.dur);
+    const lfo = ctx.createOscillator(); lfo.frequency.value = spec.warbleRate;
+    [[1, 1], [2, harm]].forEach(([mult, amp]) => {
+      const o = ctx.createOscillator(); o.type = 'sine';
+      o.frequency.setValueAtTime(s.f0 * mult, t);
+      o.frequency.linearRampToValueAtTime(s.peak * mult, t + s.dur * 0.4);
+      o.frequency.linearRampToValueAtTime(s.f1 * mult, t + s.dur);
+      const lg = ctx.createGain(); lg.gain.value = spec.warbleDepth * mult; lfo.connect(lg); lg.connect(o.frequency);
+      const og = ctx.createGain(); og.gain.value = amp; o.connect(og); og.connect(g);
+      o.start(t); o.stop(t + s.dur + 0.02);
+    });
+    lfo.start(t); lfo.stop(t + s.dur + 0.02);
+    t += s.dur + s.gap;
+  }
+  const total = t - t0;
+  markOutput(total * 1000 + 60);
+  if (!opts.silentBird) Flock.speak(total);
+  return total;
+}
+function describe(p) { return kHz(p.pitch) + ' · ' + Math.round(p.syl) + (Math.round(p.syl) === 1 ? ' note' : ' notes') + ' · ' + (p.dur != null ? p.dur.toFixed(2) : (p.sylDur * p.syl).toFixed(2)) + ' s'; }
+
+// ---------- dialect: drift toward the bird's habits ----------
+const DRIFT = {slow: 0.03, medium: 0.08, fast: 0.16};
+function updateDialect(f) {
+  const d = S.dialect, a = DRIFT[S.settings.drift] || 0.08;
+  d.pitch += a * (f.pitch - d.pitch);
+  d.sylDur += a * (f.sylDur - d.sylDur);
+  d.syl += a * (f.syl - d.syl);
+  d.slope += a * (f.slope - d.slope);
+  d.n++;
+}
+function maturity() { return clamp(S.dialect.n / 40, 0, 1); }
+function replyParams(cur) {
+  const m = maturity(), d = S.dialect;
+  const wCur = 0.35, wDia = 0.65 * (0.25 + 0.75 * m), wBase = 1 - wCur - wDia;
+  const mix = k => wBase * BASE[k] + wDia * d[k] + wCur * cur[k];
+  const p = {pitch: mix('pitch'), sylDur: mix('sylDur'), syl: Math.round(mix('syl') + rand(-0.4, 0.4)), slope: mix('slope')};
+  if (Math.abs(p.pitch - cur.pitch) / cur.pitch < 0.04) p.pitch *= Math.random() < 0.5 ? 1.06 : 0.94; // never an exact copy
+  if (p.syl === cur.syl && Math.random() < 0.35) p.syl += Math.random() < 0.5 ? -1 : 1;
+  p.syl = clamp(p.syl, 1, 4); p.pitch = clamp(p.pitch, 2000, 5000); p.sylDur = clamp(p.sylDur, 0.07, 0.28);
+  return p;
+}
+function perchyVoice() { // Perchy's own call, shaped by its dialect
+  const m = maturity(), d = S.dialect;
+  const w = 0.3 + 0.6 * m;
+  return {pitch: lerp(BASE.pitch, d.pitch, w), sylDur: lerp(BASE.sylDur, d.sylDur, w), syl: Math.round(lerp(BASE.syl, d.syl, w) + rand(-0.5, 0.5)), slope: lerp(BASE.slope, d.slope, w)};
+}
+
+// ---------- quiet hours ----------
+function quietNow(date = new Date()) {
+  const st = S.settings;
+  if (Bed.active) return true;
+  if (!st.quiet) return false;
+  const now = date.getHours() * 60 + date.getMinutes();
+  const a = toMin(st.bed.time), b = toMin(st.dawn.time);
+  return a < b ? (now >= a && now < b) : (now >= a || now < b);
+}
+
+// ---------- listening ----------
+const Mic = {stream: null, analyser: null, timer: null, td: null, fd: null, floor: 0.004, cur: null, on: false, level: 0};
+async function startListening() {
+  ensureAudio();
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) { micUnavailable(); return false; }
+  try {
+    Mic.stream = await navigator.mediaDevices.getUserMedia({audio: {echoCancellation: false, noiseSuppression: false, autoGainControl: false}});
+  } catch (e) { micUnavailable(e); return false; }
+  const src = ctx.createMediaStreamSource(Mic.stream);
+  Mic.analyser = ctx.createAnalyser(); Mic.analyser.fftSize = 2048; Mic.analyser.smoothingTimeConstant = 0;
+  src.connect(Mic.analyser);
+  Mic.td = new Float32Array(Mic.analyser.fftSize); Mic.fd = new Float32Array(Mic.analyser.frequencyBinCount);
+  Mic.timer = setInterval(detect, 20);
+  Mic.on = true; $('#micNote').hidden = true;
+  return true;
+}
+function stopListening() {
+  clearInterval(Mic.timer); Mic.timer = null; Mic.on = false; Mic.cur = null;
+  if (Mic.stream) Mic.stream.getTracks().forEach(t => t.stop());
+  Mic.stream = null;
+  $('#levelBar').style.width = '0'; $('#levelTxt').textContent = 'mic off';
+}
+function micUnavailable() {
+  const n = $('#micNote');
+  n.hidden = false;
+  n.textContent = "Perchy can't use the microphone here, so it can't hear your bird yet. Open Perchy in Chrome or Safari on the phone or tablet by the cage and allow the microphone. Everything else works, and “Play a pretend call” shows how answering back sounds.";
+}
+function detect() {
+  const an = Mic.analyser; if (!an) return;
+  an.getFloatTimeDomainData(Mic.td);
+  let sum = 0; for (let i = 0; i < Mic.td.length; i++) sum += Mic.td[i] * Mic.td[i];
+  const rms = Math.sqrt(sum / Mic.td.length);
+  an.getFloatFrequencyData(Mic.fd);
+  const binHz = ctx.sampleRate / an.fftSize;
+  const lo = Math.floor(1500 / binHz), hi = Math.min(Mic.fd.length - 2, Math.ceil(8000 / binHz));
+  let pk = lo, pv = -Infinity, mean = 0;
+  for (let i = lo; i <= hi; i++) { const v = Mic.fd[i]; mean += v; if (v > pv) { pv = v; pk = i; } }
+  mean /= (hi - lo + 1);
+  const tonal = pv - mean > 16 && pv > -80;
+  // parabolic interpolation for a finer pitch estimate
+  const a = Mic.fd[pk - 1], b = Mic.fd[pk], c = Mic.fd[pk + 1];
+  const off = (a - 2 * b + c) !== 0 ? 0.5 * (a - c) / (a - 2 * b + c) : 0;
+  const freq = (pk + clamp(off, -0.5, 0.5)) * binHz;
+
+  const now = performance.now();
+  const suppressed = now < outputUntil + 350;
+  const k = lerp(4, 1.6, S.settings.sensitivity / 100);
+  const active = !suppressed && tonal && rms > Math.max(Mic.floor * k, 0.0025);
+  if (!active && !Mic.cur && !suppressed) Mic.floor = Mic.floor * 0.995 + rms * 0.005;
+  Mic.level = Mic.level * 0.7 + rms * 0.3;
+  const db = 20 * Math.log10(Mic.level + 1e-6);
+  $('#levelBar').style.width = clamp((db + 70) / 60 * 100, 0, 100) + '%';
+  $('#levelTxt').textContent = suppressed ? 'Perchy is talking' : (active ? 'call heard' : 'listening');
+
+  let cc = Mic.cur;
+  if (active) {
+    if (!cc) cc = Mic.cur = {start: now, last: now, pitches: [], syl: 1, inGap: false, peak: 0, activeMs: 0};
+    if (cc.inGap) { cc.syl++; cc.inGap = false; }
+    cc.last = now; cc.activeMs += 20; cc.pitches.push(freq); cc.peak = Math.max(cc.peak, rms);
+    if (now - cc.start > 4000) finishCall();
+  } else if (cc) {
+    const gap = now - cc.last;
+    if (gap > 30) cc.inGap = true;
+    if (gap > 320) finishCall();
+  }
+}
+function finishCall() {
+  const c = Mic.cur; Mic.cur = null;
+  if (!c) return;
+  const dur = (c.last - c.start) / 1000 + 0.02;
+  if (dur < 0.05 || c.pitches.length < 2) return;
+  const sorted = [...c.pitches].sort((x, y) => x - y);
+  const pitch = sorted[Math.floor(sorted.length / 2)];
+  const avg = arr => arr.reduce((s, v) => s + v, 0) / arr.length;
+  const st = avg(c.pitches.slice(0, 3)), en = avg(c.pitches.slice(-3));
+  const syl = clamp(c.syl, 1, 8);
+  onCall({pitch, syl, dur, sylDur: clamp(c.activeMs / 1000 / syl, 0.04, 0.4), slope: clamp((en - st) / pitch, -0.5, 0.5), loud: Math.round(20 * Math.log10(c.peak + 1e-6))}, false);
+}
+
+// ---------- answer back ----------
+let lastReplyAt = 0; const replyTimes = []; const recentCalls = [];
+function canReply() {
+  const now = Date.now();
+  while (replyTimes.length && now - replyTimes[0] > 600000) replyTimes.shift();
+  return now - lastReplyAt > 3500 && replyTimes.length < 30;
+}
+function onCall(f, sim) {
+  const entry = {t: Date.now(), dur: +f.dur.toFixed(2), pitch: Math.round(f.pitch), syl: f.syl, loud: f.loud, replied: false, sim: !!sim};
+  updateDialect(f);
+  Flock.notice();
+  $('#lastCall').textContent = describe(f) + (sim ? ' (pretend)' : '');
+  if (S.settings.answerBack && (awake || sim) && !quietNow() && canReply()) {
+    entry.replied = true; lastReplyAt = Date.now(); replyTimes.push(lastReplyAt);
+    const p = replyParams(f);
+    setTimeout(() => { const d = playCall(specFrom(p)); $('#lastReply').textContent = describe({...p, dur: d}); }, rand(450, 1100));
+  } else if (quietNow()) {
+    $('#lastReply').textContent = 'Quiet hours, not answering';
+  }
+  S.log.push(entry);
+  if (S.log.length > 4000) S.log.splice(0, S.log.length - 4000);
+  // repeated calling -> owner's playlist
+  const now = Date.now(); recentCalls.push(now);
+  const tr = S.settings.trig, win = tr.mins * 60000;
+  while (recentCalls.length && now - recentCalls[0] > win) recentCalls.shift();
+  if (!FOCUS && tr.on && tr.pl && awake && !quietNow() && recentCalls.length >= tr.count && now - (S.ran.trigAt || 0) > 15 * 60000) {
+    S.ran.trigAt = now; recentCalls.length = 0;
+    setTimeout(() => playPlaylist(tr.pl, 'your bird kept calling'), 2500);
+  }
+  save(); renderDialect(); if (currentTab === 'log') renderLog();
+}
+function pretendCall() {
+  ensureAudio();
+  const bird = {pitch: rand(2700, 4200), syl: Math.round(rand(1, 3.4)), sylDur: rand(0.08, 0.2), slope: rand(-0.25, 0.35)};
+  const d = playCall(specFrom(bird, 0.04), {level: 0.2, harm: 0.03, silentBird: true});
+  setTimeout(() => onCall({...bird, dur: d, loud: -32}, true), d * 1000 + 50);
+}
+
+// ---------- voice clips & playlists ----------
+async function bufferFor(id) {
+  if (Clips.buffers.has(id)) return Clips.buffers.get(id);
+  const c = Clips.get(id); if (!c) return null;
+  ensureAudio();
+  const ab = await c.blob.arrayBuffer();
+  const buf = await new Promise((res, rej) => ctx.decodeAudioData(ab, res, rej));
+  Clips.buffers.set(id, buf); return buf;
+}
+async function playClip(id) {
+  let buf; try { buf = await bufferFor(id); } catch (e) { toast("That clip couldn't be played. Try recording it again."); return 0; }
+  if (!buf) return 0;
+  const src = ctx.createBufferSource(); src.buffer = buf;
+  const g = ctx.createGain(); g.gain.value = 1.3; src.connect(g); g.connect(master);
+  src.start(); markOutput(buf.duration * 1000 + 100);
+  return new Promise(res => { src.onended = () => res(buf.duration); });
+}
+let playToken = 0;
+async function playPlaylist(plId, why) {
+  const pl = S.playlists.find(p => p.id === plId);
+  if (!pl || !pl.clips.length) return;
+  const tok = ++playToken;
+  if (why) toast('Playing “' + pl.name + '” because ' + why);
+  for (const id of pl.clips) {
+    if (tok !== playToken) return;
+    await playClip(id);
+    await new Promise(r => setTimeout(r, 1800));
+  }
+}
+const Rec = {mr: null, chunks: [], start: 0, timer: null, stream: null};
+async function toggleRecord() {
+  if (Rec.mr) { Rec.mr.stop(); return; }
+  if (!window.MediaRecorder || !navigator.mediaDevices) { toast('Recording isn’t supported here. Use Add audio file instead.'); return; }
+  try { Rec.stream = await navigator.mediaDevices.getUserMedia({audio: true}); }
+  catch (e) { toast("The microphone isn't available here. Use Add audio file, or open Perchy on your phone."); return; }
+  Rec.chunks = []; Rec.mr = new MediaRecorder(Rec.stream);
+  Rec.mr.ondataavailable = e => e.data.size && Rec.chunks.push(e.data);
+  Rec.mr.onstop = async () => {
+    clearInterval(Rec.timer); Rec.stream.getTracks().forEach(t => t.stop());
+    const blob = new Blob(Rec.chunks, {type: Rec.mr.mimeType || 'audio/webm'});
+    Rec.mr = null; $('#recBtn').textContent = 'Record a clip'; $('#recState').textContent = '';
+    await Clips.put({id: uid(), name: 'Clip ' + (Clips.list.length + 1), blob, created: Date.now()});
+    renderVoice(); toast('Clip saved. Tap its name to rename it.');
+  };
+  Rec.mr.start(); Rec.start = Date.now();
+  $('#recBtn').textContent = 'Stop recording';
+  Rec.timer = setInterval(() => {
+    const s = Math.floor((Date.now() - Rec.start) / 1000);
+    $('#recState').innerHTML = '<span class="rec-dot"></span> ' + s + ' s';
+    if (s >= 20 && Rec.mr) Rec.mr.stop();
+  }, 250);
+}
+
+// ---------- daily rhythm ----------
+const Dawn = {timer: null, end: 0};
+function startDawn(mins) {
+  stopDawn(); ensureAudio();
+  const start = Date.now(); Dawn.end = start + mins * 60000;
+  const step = () => {
+    const now = Date.now();
+    if (now >= Dawn.end) { stopDawn(); return; }
+    const prog = (now - start) / (Dawn.end - start);
+    const voices = 1 + Math.floor(prog * 3);
+    for (let v = 0; v < voices; v++) {
+      setTimeout(() => {
+        const p = perchyVoice(); p.pitch *= rand(0.85, 1.2); p.syl = Math.round(rand(1, 3 + prog));
+        playCall(specFrom(p), {level: 0.1 + 0.14 * prog, silentBird: v > 0});
+      }, rand(0, 1600));
+    }
+    Dawn.timer = setTimeout(step, lerp(14000, 3500, prog) * rand(0.7, 1.3));
+  };
+  step(); renderRhythmState();
+}
+function stopDawn() { clearTimeout(Dawn.timer); Dawn.timer = null; renderRhythmState(); }
+
+const Bed = {active: false, noise: null, gain: null, timer: null, end: 0, tick: null};
+function startBed(mins) {
+  stopBed(); stopDawn(); ensureAudio();
+  Bed.active = true; const start = Date.now(); Bed.end = start + mins * 60000;
+  const len = ctx.sampleRate * 4, buf = ctx.createBuffer(1, len, ctx.sampleRate), d = buf.getChannelData(0);
+  let last = 0; for (let i = 0; i < len; i++) { last = (last + 0.02 * (Math.random() * 2 - 1)) / 1.02; d[i] = last * 3.2; }
+  const src = ctx.createBufferSource(); src.buffer = buf; src.loop = true;
+  const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 420;
+  const g = ctx.createGain(); const t = ctx.currentTime;
+  g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(0.16, t + 12); g.gain.linearRampToValueAtTime(0.0001, t + mins * 60);
+  src.connect(lp); lp.connect(g); g.connect(master); src.start(); src.stop(t + mins * 60 + 1);
+  Bed.noise = src; Bed.gain = g;
+  const step = () => {
+    const now = Date.now(); if (now >= Bed.end) { stopBed(); return; }
+    const prog = (now - start) / (Bed.end - start);
+    if (prog < 0.8) { const p = perchyVoice(); p.pitch *= 0.85; p.syl = Math.random() < 0.6 ? 1 : 2; p.sylDur *= 1.2; playCall(specFrom(p, 0.05), {level: lerp(0.1, 0.03, prog)}); }
+    Bed.timer = setTimeout(step, lerp(7000, 40000, prog) * rand(0.7, 1.3));
+  };
+  Bed.timer = setTimeout(step, 4000);
+  $('#dim').hidden = false;
+  Bed.tick = setInterval(() => { const m = Math.max(0, Math.ceil((Bed.end - Date.now()) / 60000)); $('#dimLeft').textContent = m + ' min of calm left'; }, 1000);
+  setStatus();
+}
+function stopBed() {
+  clearTimeout(Bed.timer); clearInterval(Bed.tick);
+  if (Bed.noise) { try { Bed.noise.stop(); } catch (e) {} }
+  Bed.noise = null; Bed.active = false; $('#dim').hidden = true; setStatus();
+}
+
+// ---------- talk training ----------
+const STAGES = ['Listening', 'Trying', 'Saying it', 'Learned'];
+function stageOf(w) { return w.clear >= 10 ? 3 : w.clear >= 3 ? 2 : (w.tries >= 1 || w.clear >= 1) ? 1 : 0; }
+let practicing = null;
+async function practice(id) {
+  const w = S.words.find(x => x.id === id); if (!w) return;
+  if (practicing) { practicing = null; renderTrain(); return; }
+  ensureAudio(); const tok = practicing = uid(); renderTrain();
+  const reps = clamp(+S.training.reps || 5, 1, 30), gap = clamp(+S.training.gap || 8, 2, 120);
+  for (let i = 0; i < reps; i++) {
+    if (practicing !== tok) return;
+    if (w.clip && Clips.get(w.clip)) await playClip(w.clip);
+    else await speak(w.word);
+    if (i < reps - 1) await new Promise(r => setTimeout(r, gap * 1000));
+  }
+  if (practicing === tok) { practicing = null; w.sessions++; w.last = Date.now(); save(); renderTrain(); toast('Practice done: “' + w.word + '”'); }
+}
+function speak(text) {
+  return new Promise(res => {
+    if (!('speechSynthesis' in window)) { res(); return; }
+    try {
+      const u = new SpeechSynthesisUtterance(text); u.pitch = 1.6; u.rate = 0.85;
+      markOutput(2500); u.onend = res; u.onerror = res; speechSynthesis.speak(u);
+      setTimeout(res, 6000);
+    } catch (e) { res(); }
+  });
+}
+
+// ---------- scheduler (runs while the page is open) ----------
+function once(key) { if (S.ran[key]) return false; S.ran[key] = Date.now(); save(); return true; }
+function tick() {
+  const now = new Date(), t = hhmm(now), day = dayKey(now), st = S.settings;
+  for (const k in S.ran) if (k !== 'trigAt' && Date.now() - S.ran[k] > 2 * 86400000) delete S.ran[k];
+  setStatus();
+  if (!awake || FOCUS) return;
+  if (st.dawn.on && t === st.dawn.time && once(day + 'dawn')) startDawn(st.dawn.mins);
+  if (st.bed.on && t === st.bed.time && once(day + 'bed')) startBed(st.bed.mins);
+  if (quietNow(now)) return;
+  for (const s of S.schedules) if (s.time === t && once(day + 'sch' + s.id)) playPlaylist(s.pl, 'it’s ' + fmtTime(now));
+  const times = String(S.training.times).split(',').map(x => x.trim()).filter(x => /^\d{1,2}:\d{2}$/.test(x)).map(x => x.padStart(5, '0'));
+  if (times.includes(t) && once(day + 'train' + t)) {
+    const w = S.words.find(x => stageOf(x) < 3);
+    if (w && !practicing) practice(w.id);
+  }
+}
+
+// ---------- flockmate animation ----------
+const Flock = {
+  cv: null, g: null, t: 0, mouth: 0, mouthUntil: 0, tilt: 0, tiltUntil: 0, preenFrom: 0, nextPreen: 0, raf: null,
+  init() {
+    this.cv = $('#flock'); this.g = this.cv.getContext('2d');
+    this.nextPreen = performance.now() + rand(15000, 30000);
+    const ro = new ResizeObserver(() => this.resize()); ro.observe(this.cv); this.resize();
+    document.addEventListener('visibilitychange', () => this.run());
+    this.run();
+  },
+  resize() { const r = this.cv.getBoundingClientRect(), dpr = Math.min(2, window.devicePixelRatio || 1); this.cv.width = Math.max(1, r.width * dpr); this.cv.height = Math.max(1, r.height * dpr); this.draw(performance.now()); },
+  run() {
+    cancelAnimationFrame(this.raf);
+    if (!S.settings.flockmate || document.hidden || currentTab !== 'listen') { this.draw(performance.now()); return; }
+    const loop = now => { this.draw(now); this.raf = requestAnimationFrame(loop); };
+    this.raf = requestAnimationFrame(loop);
+  },
+  speak(sec) { this.mouthUntil = performance.now() + sec * 1000; },
+  notice() { this.tiltUntil = performance.now() + 1400; },
+  draw(now) {
+    const g = this.g, W = this.cv.width, H = this.cv.height; if (!g) return;
+    g.clearRect(0, 0, W, H);
+    if (!S.settings.flockmate) {
+      g.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--muted');
+      g.font = `${Math.round(14 * W / 400)}px system-ui`; g.textAlign = 'center';
+      g.fillText('Perchy is hidden', W / 2, H / 2); return;
+    }
+    const s = Math.min(W / 320, H / 240); const amp = reduceMotion ? 0.3 : 1;
+    const t = now / 1000;
+    const speaking = now < this.mouthUntil;
+    this.mouth += ((speaking ? (0.5 + 0.5 * Math.abs(Math.sin(t * 22))) : 0) - this.mouth) * 0.35;
+    let targetTilt = now < this.tiltUntil ? -0.32 : 0;
+    if (now > this.nextPreen && !speaking) { this.preenFrom = now; this.nextPreen = now + rand(20000, 40000); }
+    const pp = (now - this.preenFrom) / 2400;
+    let preen = 0; if (pp >= 0 && pp <= 1) { preen = Math.sin(pp * Math.PI); targetTilt = 0; }
+    this.tilt += (targetTilt - this.tilt) * 0.12;
+    const bob = Math.sin(t * (speaking ? 9 : 1.6)) * (speaking ? 3 : 1.5) * amp;
+    g.save(); g.translate(W / 2 - 160 * s, H / 2 - 120 * s); g.scale(s, s);
+    // perch
+    g.fillStyle = '#8a6a43'; rr(g, 30, 206, 260, 12, 6); g.fill();
+    g.save(); g.translate(0, bob);
+    // tail
+    g.fillStyle = '#2f5d8f'; g.beginPath(); g.moveTo(178, 168); g.lineTo(262, 236); g.lineTo(252, 242); g.lineTo(160, 180); g.closePath(); g.fill();
+    // body
+    const bg = g.createLinearGradient(110, 80, 200, 210); bg.addColorStop(0, '#7fd25a'); bg.addColorStop(1, '#3f9a2e');
+    g.fillStyle = bg; g.beginPath(); g.ellipse(160, 140, 50, 74, -0.35, 0, Math.PI * 2); g.fill();
+    // wing with scallops
+    g.save(); g.translate(176, 136); g.rotate(-0.35);
+    g.fillStyle = '#d9cf6a'; g.beginPath(); g.ellipse(0, 0, 30, 56, 0, 0, Math.PI * 2); g.fill();
+    g.strokeStyle = '#1d2a1f'; g.lineWidth = 2.2;
+    for (let r = -40; r <= 36; r += 11) for (let c = -18; c <= 18; c += 12) { const w = 1 - Math.abs(r) / 60; if (Math.abs(c) > 26 * w) continue; g.beginPath(); g.arc(c, r, 6, 0.1 * Math.PI, 0.9 * Math.PI); g.stroke(); }
+    g.restore();
+    // feet
+    g.strokeStyle = '#b7a2a0'; g.lineWidth = 4; g.lineCap = 'round';
+    [[148, 200], [168, 200]].forEach(([x, y]) => { g.beginPath(); g.moveTo(x, y - 8); g.lineTo(x - 6, y + 8); g.moveTo(x, y - 8); g.lineTo(x + 6, y + 8); g.stroke(); });
+    // head
+    g.save(); g.translate(130 + preen * 22, 70 + preen * 34); g.rotate(this.tilt + preen * 0.9);
+    g.fillStyle = '#f3d13c'; g.beginPath(); g.arc(0, 0, 36, 0, Math.PI * 2); g.fill();
+    g.strokeStyle = '#2a2a1e'; g.lineWidth = 2;
+    g.save(); g.beginPath(); g.arc(0, 0, 35, 0, Math.PI * 2); g.clip(); for (let i = 0; i < 6; i++) { g.beginPath(); g.arc(30, -2 + i * 5 - 14, 20, Math.PI * 0.75, Math.PI * 1.15); g.stroke(); } g.restore();
+    g.fillStyle = '#5b4fb8'; g.beginPath(); g.ellipse(-14, 22, 6, 4, 0.3, 0, Math.PI * 2); g.fill();
+    g.fillStyle = '#1d1d1d'; [[-4, 33], [8, 34], [19, 30]].forEach(([x, y]) => { g.beginPath(); g.arc(x, y, 2.6, 0, Math.PI * 2); g.fill(); });
+    g.fillStyle = '#fff'; g.beginPath(); g.arc(-12, -6, 7.5, 0, Math.PI * 2); g.fill();
+    g.fillStyle = '#111'; g.beginPath(); g.arc(-13, -6, 5, 0, Math.PI * 2); g.fill();
+    g.fillStyle = '#fff'; g.beginPath(); g.arc(-15, -8, 1.5, 0, Math.PI * 2); g.fill();
+    g.fillStyle = '#3566ad'; g.beginPath(); g.ellipse(-31, 2, 6, 4.5, 0.2, 0, Math.PI * 2); g.fill();
+    const o = this.mouth * 0.5;
+    g.fillStyle = '#c9b07a';
+    g.save(); g.translate(-30, 8); g.rotate(o); g.beginPath(); g.moveTo(0, 0); g.quadraticCurveTo(-8, 4, -6, 10); g.lineTo(2, 6); g.closePath(); g.fill(); g.restore();
+    g.save(); g.translate(-30, 6); g.rotate(-o * 0.3); g.beginPath(); g.moveTo(4, -4); g.quadraticCurveTo(-14, -2, -10, 16); g.quadraticCurveTo(-6, 8, 4, 6); g.closePath(); g.fill(); g.restore();
+    g.restore();
+    g.restore(); g.restore();
+  }
+};
+function rr(g, x, y, w, h, r) { g.beginPath(); g.moveTo(x + r, y); g.arcTo(x + w, y, x + w, y + h, r); g.arcTo(x + w, y + h, x, y + h, r); g.arcTo(x, y + h, x, y, r); g.arcTo(x, y, x + w, y, r); g.closePath(); }
+
+// ---------- rendering ----------
+let currentTab = 'listen', awake = false, wakeLock = null;
+function setStatus() {
+  const p = $('#statusPill');
+  if (!awake) { p.className = 'pill'; p.textContent = 'Asleep'; return; }
+  if (quietNow()) { p.className = 'pill quiet'; p.textContent = Bed.active ? 'Bedtime' : 'Quiet hours'; return; }
+  p.className = 'pill on'; p.textContent = Mic.on ? 'Listening' : 'Awake, mic off';
+}
+function renderDialect() {
+  const d = S.dialect, m = maturity();
+  $('#dialectCount').textContent = d.n ? 'Learned from ' + d.n + (d.n === 1 ? ' call' : ' calls') : 'No calls learned yet';
+  const v = perchyVoice();
+  $('#dialectTiles').innerHTML = [
+    ['Pitch', kHz(v.pitch)], ['Notes per call', (lerp(BASE.syl, d.syl, 0.3 + 0.6 * m)).toFixed(1)],
+    ['Note length', Math.round(v.sylDur * 1000) + ' ms'], ['Contour', v.slope > 0.06 ? 'Rising' : v.slope < -0.06 ? 'Falling' : 'Level']
+  ].map(([k, val]) => `<div class="tile"><b>${val}</b><span>${k}</span></div>`).join('');
+  $('#matPct').textContent = Math.round(m * 100) + '%';
+  $('#matBar').style.width = (m * 100) + '%';
+}
+function plOptions(sel) {
+  if (!S.playlists.length) return '<option value="">Make a playlist first</option>';
+  return S.playlists.map(p => `<option value="${p.id}"${p.id === sel ? ' selected' : ''}>${esc(p.name)}</option>`).join('');
+}
+function renderVoice() {
+  const cl = $('#clipList');
+  cl.innerHTML = Clips.list.length ? Clips.list.map(c => `<li class="item" data-id="${c.id}">
+      <span class="name" contenteditable="true" spellcheck="false" data-act="rename" aria-label="Clip name">${esc(c.name)}</span>
+      <span class="row"><button class="btn" data-act="play">Play</button><button class="btn ghost danger" data-act="del">Delete</button></span></li>`).join('')
+    : '<li class="small muted">No clips yet. Record your first one above.</li>';
+  const pl = $('#plList');
+  pl.innerHTML = S.playlists.length ? S.playlists.map(p => `<li class="item" data-id="${p.id}" style="display:grid">
+      <div class="row between"><span class="name">${esc(p.name)}</span><span class="row"><button class="btn" data-act="plplay">Play</button><button class="btn ghost danger" data-act="pldel">Delete</button></span></div>
+      <div class="chips">${p.clips.map((cid, i) => { const c = Clips.get(cid); return c ? `<span class="chip">${esc(c.name)}<button data-act="plrm" data-i="${i}" aria-label="Remove ${esc(c.name)}">×</button></span>` : ''; }).join('') || '<span class="small muted">Empty playlist</span>'}</div>
+      ${Clips.list.length ? `<div class="row"><select data-act="plpick" aria-label="Clip to add">${Clips.list.map(c => `<option value="${c.id}">${esc(c.name)}</option>`).join('')}</select><button class="btn" data-act="pladd">Add clip</button></div>` : ''}
+    </li>`).join('') : '<li class="small muted">No playlists yet.</li>';
+  const st = S.settings.trig;
+  $('#trigOn').checked = st.on; $('#trigCount').value = st.count; $('#trigMins').value = st.mins;
+  $('#trigPl').innerHTML = plOptions(st.pl);
+  if (!st.pl && S.playlists[0]) { st.pl = S.playlists[0].id; save(); }
+  $('#schPl').innerHTML = plOptions();
+  $('#schList').innerHTML = S.schedules.length ? [...S.schedules].sort((a, b) => toMin(a.time) - toMin(b.time)).map(s => {
+    const p = S.playlists.find(x => x.id === s.pl);
+    return `<li class="item" data-id="${s.id}"><span><b class="mono">${esc(s.time)}</b> <span class="muted">daily</span> · ${p ? esc(p.name) : '<span class="muted">deleted playlist</span>'}</span><button class="btn ghost danger" data-act="schdel">Remove</button></li>`;
+  }).join('') : '<li class="small muted">Nothing scheduled.</li>';
+  const wc = $('#wordClip');
+  wc.innerHTML = '<option value="">Device voice</option>' + Clips.list.map(c => `<option value="${c.id}">${esc(c.name)}</option>`).join('');
+}
+function renderRhythmState() {
+  $('#dawnState').textContent = Dawn.timer ? 'Playing until ' + fmtTime(Dawn.end) : '';
+  $('#dawnNow').textContent = Dawn.timer ? 'Stop' : 'Play now';
+}
+function renderRhythm() {
+  const st = S.settings;
+  $('#dawnOn').checked = st.dawn.on; $('#dawnTime').value = st.dawn.time; $('#dawnMins').value = st.dawn.mins;
+  $('#bedOn').checked = st.bed.on; $('#bedTime').value = st.bed.time; $('#bedMins').value = st.bed.mins;
+  $('#quietOn').checked = st.quiet;
+  const fmt = s => { const d = new Date(); d.setHours(...s.split(':').map(Number), 0, 0); return fmtTime(d); };
+  $('#quietTxt').textContent = 'Perchy won’t answer back or play clips from ' + fmt(st.bed.time) + ' until ' + fmt(st.dawn.time) + '.';
+  renderRhythmState();
+}
+function exampleLog() {
+  // A plausible example day, used only until real calls exist.
+  const out = [], base = new Date(); base.setHours(0, 0, 0, 0);
+  const shape = [0,0,0,0,0,0,1,6,9,5,3,4,7,11,14,12,8,5,4,6,3,1,0,0];
+  let seed = 7; const r = () => (seed = (seed * 9301 + 49297) % 233280) / 233280;
+  shape.forEach((n, h) => { for (let i = 0; i < n; i++) { const t = base.getTime() + h * 3600000 + r() * 3600000; out.push({t, dur: +(0.15 + r() * 0.5).toFixed(2), pitch: Math.round(2900 + r() * 1200), syl: 1 + Math.floor(r() * 3), loud: -30, replied: r() > 0.25, sim: true}); } });
+  for (let d = 1; d < 7; d++) { const n = 40 + Math.round(r() * 60); for (let i = 0; i < n; i++) out.push({t: base.getTime() - d * 86400000 + (7 + r() * 14) * 3600000, dur: 0.3, pitch: 3200, syl: 2, replied: true, sim: true}); }
+  return out.sort((a, b) => a.t - b.t);
+}
+function renderLog() {
+  const usingExample = S.log.length === 0;
+  const log = usingExample ? exampleLog() : S.log;
+  $('#exPill').hidden = !usingExample;
+  $('#clearLogWrap').hidden = usingExample;
+  const today = dayKey(new Date());
+  const todays = log.filter(e => dayKey(new Date(e.t)) === today);
+  const hours = Array(24).fill(0); todays.forEach(e => hours[new Date(e.t).getHours()]++);
+  const busiest = hours.indexOf(Math.max(...hours));
+  const replies = todays.filter(e => e.replied).length;
+  const avgLen = todays.length ? todays.reduce((s, e) => s + e.dur, 0) / todays.length : 0;
+  $('#logTitle').textContent = 'Today, ' + new Date().toLocaleDateString([], {weekday: 'long', month: 'short', day: 'numeric'});
+  $('#logTiles').innerHTML = [
+    [todays.length, 'Calls today'], [todays.length ? fmtHour(busiest) : '–', 'Busiest hour'],
+    [replies, 'Perchy answers'], [avgLen ? avgLen.toFixed(2) + ' s' : '–', 'Avg call length']
+  ].map(([v, k]) => `<div class="tile"><b>${v}</b><span>${k}</span></div>`).join('');
+  $('#logInsight').textContent = todays.length
+    ? `Your bird called most around ${fmtHour(busiest)}${hours[busiest] > 5 ? ' (' + hours[busiest] + ' calls)' : ''}. If you're usually out then, try scheduling a voice playlist for that hour.`
+    : 'No calls logged today yet.';
+  // hourly bars
+  const W = 600, H = 190, pl = 40, pb = 32, pt = 12, bw = (W - pl - 6) / 24, mx = Math.max(4, ...hours);
+  const ticks = [0, Math.ceil(mx / 2), mx];
+  const nowH = new Date().getHours();
+  let svg = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Calls per hour today">`;
+  ticks.forEach(v => { const y = pt + (H - pt - pb) * (1 - v / mx); svg += `<line x1="${pl}" x2="${W}" y1="${y}" y2="${y}" stroke="var(--line)" stroke-width="1"/><text x="${pl - 6}" y="${y + 4}" text-anchor="end">${v}</text>`; });
+  hours.forEach((v, h) => { const bh = (H - pt - pb) * v / mx; const x = pl + 3 + h * bw; svg += `<rect x="${x + 1.5}" y="${H - pb - bh}" width="${bw - 3}" height="${bh}" rx="2" fill="${h === nowH ? 'var(--yellow)' : 'var(--green)'}"><title>${fmtHour(h)}: ${v} calls</title></rect>`; });
+  [0, 6, 12, 18, 23].forEach(h => { svg += `<text x="${pl + 3 + h * bw + bw / 2}" y="${H - 6}" text-anchor="${h === 0 ? "start" : h === 23 ? "end" : "middle"}">${fmtHour(h)}</text>`; });
+  $('#hourChart').innerHTML = svg + '</svg>';
+  // week bars
+  const days = []; for (let d = 6; d >= 0; d--) { const dt = new Date(); dt.setDate(dt.getDate() - d); days.push({k: dayKey(dt), label: dt.toLocaleDateString([], {weekday: 'short'}), n: 0}); }
+  log.forEach(e => { const dd = days.find(x => x.k === dayKey(new Date(e.t))); if (dd) dd.n++; });
+  const wm = Math.max(4, ...days.map(d => d.n)), WW = 420, WH = 170, wb = (WW - 10) / 7;
+  let w = `<svg viewBox="0 0 ${WW} ${WH}" role="img" aria-label="Calls per day, last 7 days">`;
+  days.forEach((d, i) => { const bh = (WH - 64) * d.n / wm; const x = 5 + i * wb; w += `<rect x="${x + 6}" y="${WH - 30 - bh}" width="${wb - 12}" height="${bh}" rx="3" fill="${i === 6 ? 'var(--yellow)' : 'var(--cere)'}"/><text x="${x + wb / 2}" y="${WH - 36 - bh}" text-anchor="middle">${d.n}</text><text x="${x + wb / 2}" y="${WH - 6}" text-anchor="middle">${d.label}</text>`; });
+  $('#weekChart').innerHTML = w + '</svg>';
+  const rows = log.slice(-25).reverse();
+  $('#logRows').innerHTML = rows.length ? rows.map(e => `<tr><td>${fmtTime(e.t)}</td><td>${e.dur.toFixed(2)} s</td><td>${kHz(e.pitch)}</td><td>${e.syl}</td><td>${e.replied ? 'answered' : '–'}${e.sim && !usingExample ? ' (pretend)' : ''}</td></tr>`).join('') : '<tr><td colspan="5">No calls yet.</td></tr>';
+}
+function renderTrain() {
+  const tr = S.training;
+  $('#trReps').value = tr.reps; $('#trGap').value = tr.gap; $('#trTimes').value = tr.times;
+  const list = $('#wordList');
+  if (!S.words.length) { list.innerHTML = '<div class="card"><p class="muted">No words yet. Start with something short and bright, like "Hello" or the bird’s own name.</p></div>'; return; }
+  list.innerHTML = S.words.map(w => {
+    const st = stageOf(w), c = w.clip && Clips.get(w.clip);
+    return `<div class="word" data-id="${w.id}">
+      <div class="row between"><span class="w">${esc(w.word)}</span><span class="stage s${st}">${STAGES[st]}</span></div>
+      <div class="bar"><i style="width:${Math.min(100, w.clear * 10)}%"></i></div>
+      <p class="small muted mono">${w.sessions} sessions · ${w.tries} tries heard · ${w.clear} clear</p>
+      <p class="small muted">Voice: ${c ? esc(c.name) : 'device voice'}${w.last ? ' · last practised ' + new Date(w.last).toLocaleDateString([], {month: 'short', day: 'numeric'}) : ''}</p>
+      <div class="row">
+        <button class="btn primary" data-act="prac">${practicing ? 'Stop' : 'Practise now'}</button>
+        <button class="btn" data-act="try">Heard a try</button>
+        <button class="btn" data-act="clear">Said it!</button>
+        <span class="confirm" data-slot></span>
+        <button class="btn ghost danger" data-act="wdel">Remove</button>
+      </div></div>`;
+  }).join('');
+}
+function showTab(name) {
+  currentTab = name;
+  document.querySelectorAll('.tabs button').forEach(b => b.setAttribute('aria-selected', String(b.dataset.tab === name)));
+  ['listen', 'voice', 'rhythm', 'log', 'train'].forEach(n => $('#tab-' + n).hidden = n !== name);
+  if (name === 'log') renderLog();
+  if (name === 'voice') renderVoice();
+  if (name === 'train') renderTrain();
+  if (name === 'rhythm') renderRhythm();
+  Flock.run();
+  try { localStorage.setItem('perchy.tab', name); } catch (e) {}
+}
+
+// in-page confirm (browser dialogs aren't available everywhere)
+function confirmIn(wrap, label, onYes) {
+  const prev = wrap.innerHTML;
+  wrap.innerHTML = `<span class="confirm">${label} <button class="btn danger" data-y>Yes</button><button class="btn ghost" data-n>Cancel</button></span>`;
+  wrap.querySelector('[data-y]').onclick = () => { onYes(); };
+  wrap.querySelector('[data-n]').onclick = () => { wrap.innerHTML = prev; bindClear(); };
+}
+function bindClear() { const b = $('#clearLog'); if (b) b.onclick = () => confirmIn($('#clearLogWrap'), 'Delete every logged call?', () => { S.log = []; save(); $('#clearLogWrap').innerHTML = '<button class="btn ghost danger small" id="clearLog">Clear log</button>'; bindClear(); renderLog(); }); }
+
+// ---------- wiring ----------
+async function wake() {
+  if (awake) {
+    awake = false; stopListening(); stopDawn(); stopBed(); playToken++; practicing = null;
+    if (wakeLock) { try { wakeLock.release(); } catch (e) {} wakeLock = null; }
+    $('#wakeBtn').textContent = 'Wake Perchy'; $('#wakeTitle').textContent = 'Perchy is asleep';
+    $('#wakeSub').textContent = 'Wake Perchy on a phone or tablet near the cage. It listens for your budgie’s calls and answers in its own soft budgie voice.';
+    setStatus(); return;
+  }
+  ensureAudio(); awake = true;
+  $('#wakeBtn').textContent = 'Put Perchy to sleep'; $('#wakeTitle').textContent = 'Perchy is awake';
+  $('#wakeSub').textContent = 'Keep this page open and the device plugged in. Schedules, dawn chorus and bedtime run while Perchy is awake.';
+  setStatus();
+  playCall(specFrom(perchyVoice()), {level: 0.18});
+  await startListening();
+  requestWakeLock(); setStatus();
+}
+async function requestWakeLock() { try { if (navigator.wakeLock && awake) wakeLock = await navigator.wakeLock.request('screen'); } catch (e) {} }
+document.addEventListener('visibilitychange', () => { if (!document.hidden && awake) requestWakeLock(); });
+
+$('#wakeBtn').onclick = wake;
+$('#simBtn').onclick = pretendCall;
+$('#callOutBtn').onclick = () => { const p = perchyVoice(); const d = playCall(specFrom(p)); $('#lastReply').textContent = describe({...p, dur: d}) + ' (contact call)'; };
+document.querySelector('.tabs').onclick = e => { const b = e.target.closest('button[data-tab]'); if (b) showTab(b.dataset.tab); };
+const st = S.settings;
+$('#vol').value = st.volume; $('#vol').oninput = e => { st.volume = +e.target.value; applyVolume(); save(); };
+$('#answerBack').checked = st.answerBack; $('#answerBack').onchange = e => { st.answerBack = e.target.checked; save(); };
+$('#sens').value = st.sensitivity; $('#sens').oninput = e => { st.sensitivity = +e.target.value; save(); };
+$('#drift').value = st.drift; $('#drift').onchange = e => { st.drift = e.target.value; save(); };
+$('#flockOn').checked = st.flockmate; $('#flockOn').onchange = e => { st.flockmate = e.target.checked; save(); Flock.run(); };
+function bindReset() { $('#resetDialect').onclick = () => confirmIn($('#resetDialectRow'), 'Forget what Perchy learned?', () => { S.dialect = {...DEFAULTS.dialect}; save(); $('#resetDialectRow').innerHTML = '<button class="btn ghost small" id="resetDialect">Reset to Perchy’s own voice</button>'; bindReset(); renderDialect(); }); }
+bindReset();
+
+// voice tab
+$('#recBtn').onclick = toggleRecord;
+$('#fileIn').onchange = async e => {
+  for (const f of e.target.files) await Clips.put({id: uid(), name: f.name.replace(/\.[^.]+$/, '').slice(0, 40), blob: f, created: Date.now()});
+  e.target.value = ''; renderVoice(); toast('Added to your clips');
+};
+$('#clipList').addEventListener('click', async e => {
+  const b = e.target.closest('[data-act]'); const li = e.target.closest('[data-id]'); if (!b || !li) return;
+  const id = li.dataset.id;
+  if (b.dataset.act === 'play') { ensureAudio(); playClip(id); }
+  if (b.dataset.act === 'del') {
+    const slot = b.parentElement;
+    confirmIn(slot, 'Delete?', async () => { S.playlists.forEach(p => p.clips = p.clips.filter(c => c !== id)); S.words.forEach(w => { if (w.clip === id) w.clip = ''; }); save(); await Clips.del(id); renderVoice(); });
+  }
+});
+$('#clipList').addEventListener('focusout', async e => {
+  const n = e.target.closest('[data-act="rename"]'); if (!n) return;
+  const c = Clips.get(n.closest('[data-id]').dataset.id); const name = n.textContent.trim().slice(0, 40);
+  if (c && name && name !== c.name) { c.name = name; await Clips.put(c); renderVoice(); }
+});
+$('#clipList').addEventListener('keydown', e => { if (e.key === 'Enter' && e.target.closest('[data-act="rename"]')) { e.preventDefault(); e.target.blur(); } });
+$('#plAdd').onclick = () => { const n = $('#plName').value.trim(); if (!n) { toast('Give the playlist a name first'); return; } S.playlists.push({id: uid(), name: n.slice(0, 40), clips: []}); $('#plName').value = ''; save(); renderVoice(); };
+$('#plList').addEventListener('click', e => {
+  const b = e.target.closest('[data-act]'); const li = e.target.closest('li[data-id]'); if (!b || !li) return;
+  const p = S.playlists.find(x => x.id === li.dataset.id); if (!p) return;
+  const act = b.dataset.act;
+  if (act === 'plplay') { ensureAudio(); if (!p.clips.length) toast('Add a clip to this playlist first'); else playPlaylist(p.id); }
+  if (act === 'pldel') confirmIn(b.parentElement, 'Delete playlist?', () => { S.playlists = S.playlists.filter(x => x !== p); S.schedules = S.schedules.filter(s => s.pl !== p.id); if (S.settings.trig.pl === p.id) S.settings.trig.pl = ''; save(); renderVoice(); });
+  if (act === 'pladd') { const v = li.querySelector('[data-act="plpick"]').value; if (v) { p.clips.push(v); save(); renderVoice(); } }
+  if (act === 'plrm') { p.clips.splice(+b.dataset.i, 1); save(); renderVoice(); }
+});
+$('#trigOn').onchange = e => { st.trig.on = e.target.checked; if (st.trig.on && !S.playlists.length) toast('Make a playlist so Perchy has something to play'); save(); };
+$('#trigCount').onchange = e => { st.trig.count = clamp(+e.target.value || 5, 2, 30); save(); };
+$('#trigMins').onchange = e => { st.trig.mins = clamp(+e.target.value || 3, 1, 30); save(); };
+$('#trigPl').onchange = e => { st.trig.pl = e.target.value; save(); };
+$('#schAdd').onclick = () => { const t = $('#schTime').value, p = $('#schPl').value; if (!t || !p) { toast('Pick a time and a playlist'); return; } S.schedules.push({id: uid(), time: t, pl: p}); save(); renderVoice(); };
+$('#schList').addEventListener('click', e => { const b = e.target.closest('[data-act="schdel"]'); if (!b) return; S.schedules = S.schedules.filter(s => s.id !== b.closest('[data-id]').dataset.id); save(); renderVoice(); });
+
+// rhythm tab
+const bindR = (id, fn) => $(id).onchange = e => { fn(e.target); save(); renderRhythm(); setStatus(); };
+bindR('#dawnOn', t => st.dawn.on = t.checked); bindR('#dawnTime', t => st.dawn.time = t.value || '07:00'); bindR('#dawnMins', t => st.dawn.mins = clamp(+t.value || 10, 2, 30));
+bindR('#bedOn', t => st.bed.on = t.checked); bindR('#bedTime', t => st.bed.time = t.value || '20:30'); bindR('#bedMins', t => st.bed.mins = clamp(+t.value || 15, 5, 45));
+bindR('#quietOn', t => st.quiet = t.checked);
+$('#quietOn2').checked = st.quiet; $('#quietOn2').onchange = e => { st.quiet = e.target.checked; save(); setStatus(); toast(st.quiet ? 'Perchy will stay quiet overnight' : 'Perchy will answer at any hour'); };
+$('#dawnNow').onclick = () => { if (Dawn.timer) stopDawn(); else startDawn(st.dawn.mins); };
+$('#bedNow').onclick = () => startBed(st.bed.mins);
+$('#dimStop').onclick = stopBed;
+$('#dimHide').onclick = () => { $('#dim').hidden = true; };
+
+// training tab
+$('#wordAdd').onclick = () => { const w = $('#wordIn').value.trim(); if (!w) { toast('Type a word to teach'); return; } S.words.push({id: uid(), word: w.slice(0, 40), clip: $('#wordClip').value, sessions: 0, tries: 0, clear: 0, last: 0}); $('#wordIn').value = ''; save(); renderTrain(); };
+$('#trReps').onchange = e => { S.training.reps = clamp(+e.target.value || 5, 2, 20); save(); };
+$('#trGap').onchange = e => { S.training.gap = clamp(+e.target.value || 8, 3, 60); save(); };
+$('#trTimes').onchange = e => { S.training.times = e.target.value; save(); };
+$('#wordList').addEventListener('click', e => {
+  const b = e.target.closest('[data-act]'); const card = e.target.closest('[data-id]'); if (!b || !card) return;
+  const w = S.words.find(x => x.id === card.dataset.id); if (!w) return;
+  const act = b.dataset.act;
+  if (act === 'prac') practice(w.id);
+  if (act === 'try') { w.tries++; save(); renderTrain(); toast('Nice, a try for “' + w.word + '”'); }
+  if (act === 'clear') { w.clear++; save(); renderTrain(); toast(w.clear === 10 ? '“' + w.word + '” is learned!' : 'Logged a clear “' + w.word + '”'); }
+  if (act === 'wdel') confirmIn(card.querySelector('[data-slot]'), 'Remove word?', () => { S.words = S.words.filter(x => x !== w); save(); renderTrain(); });
+});
+
+// ---------- boot ----------
+renderDialect(); bindClear();
+Flock.init();
+Clips.open().then(() => { renderVoice(); renderTrain(); });
+let startTab = 'listen'; if (!FOCUS) { try { startTab = localStorage.getItem('perchy.tab') || 'listen'; } catch (e) {} }
+showTab(['listen', 'voice', 'rhythm', 'log', 'train'].includes(startTab) ? startTab : 'listen');
+setStatus();
+setInterval(tick, 15000);
+})();
+</script>
+
+</body></html>
