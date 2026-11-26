@@ -181,7 +181,7 @@ function describe(f) { return kHz(f.pitch) + ' · ' + f.syl + (f.syl === 1 ? ' n
 function setCap(t) { $('#cap').textContent = t; }
 function onCall(f, pretend) {
   const now = Date.now();
-  Bird.notice(); setCap('Heard your bird');
+  Bird.notice(); Photo.notice(); setCap('Heard your bird');
   $('#lastCall').textContent = describe(f) + (pretend ? ' (pretend)' : '');
   if (!pretend) {
     S.n++; S.pitch += (f.pitch - S.pitch) * (S.n < 8 ? 0.3 : 0.08);
@@ -211,7 +211,7 @@ function reply(f) {
   const rate = clamp(target / clip.pitch, 0.95, 1.05); // lean a little toward your bird's pitch, as flockmates do
   const d = say(clip, {rate, level: rand(0.8, 1)});
   pending = {id: clip.id, t: Date.now() + d * 1000};
-  if (streak >= 2 && Math.random() < 0.5) setTimeout(() => Bird.startAct('bob', performance.now()), d * 1000 + 100);
+  if (streak >= 2 && Math.random() < 0.5) setTimeout(() => { Bird.startAct('bob', performance.now()); Photo.startAct('bob', performance.now()); }, d * 1000 + 100);
   $('#lastReply').textContent = ({chirp: 'Chirp', phrase: 'Phrase', chatter: 'Chatter'})[clip.kind] + ' · ' + kHz(clip.pitch * rate) + ' · ' + d.toFixed(2) + ' s';
   setCap('Answering'); setTimeout(() => { if (awake) setCap(quietNow() ? 'Quiet hours' : 'Listening'); }, d * 1000 + 700);
 }
@@ -228,7 +228,7 @@ function playFlock() {
   const ids = [...bedBufs.keys()]; if (!ids.length) return;
   const buf = bedBufs.get(pick(ids)), src = ctx.createBufferSource(); src.buffer = buf; src.playbackRate.value = rand(0.98, 1.02);
   const g = ctx.createGain(); g.gain.value = rand(0.7, 1); src.connect(g); g.connect(far); src.start();
-  markOutput(buf.duration * 1000 + 150); Bird.listenUp(buf.duration);
+  markOutput(buf.duration * 1000 + 150); Bird.listenUp(buf.duration); Photo.listenUp(buf.duration);
   setCap('A flock passing'); setTimeout(() => { if (awake) setCap(quietNow() ? 'Quiet hours' : 'Listening'); }, buf.duration * 1000);
 }
 // Once a second: the gentle things Perchy does unprompted.
@@ -290,26 +290,16 @@ const bind = (id, key, after) => { $(id).checked = st[key]; $(id).onchange = e =
 bind('#answerBack', 'answer'); bind('#callOut', 'callOut', on => { if (on) scheduleCallOut(); });
 bind('#bgFlock', 'flock', on => { if (on) nextFlock = Date.now() + 8000; });
 bind('#quietOn', 'quiet', on => { setStatus(); toast(on ? 'Perchy will stay quiet from 8:30 PM to 7 AM' : 'Perchy will make sounds at any hour'); });
-// Real footage of the bird: a short steadied loop that plays forward then backward. It rests for a
-// random moment at each turnaround so the repeat is harder to spot, and falls back to the painted bird if it cannot play.
+// Photo bird (made from Kyle's own budgie) is the default; the painted bird is the fallback and the alternative.
 const Real = (() => {
-  const v = $('#vid'), box = v.parentElement; let ok = true, holdUntil = 0, lastHalf = 0, raf = 0;
+  const box = $('#photo').parentElement; let ok = true;
   const on = () => ok && st.real !== false && st.show;
-  function frame() {
-    raf = 0; if (!on() || !awake) return;
-    const now = performance.now(), half = v.duration ? (v.currentTime < v.duration / 2 ? 0 : 1) : 0;
-    if (half !== lastHalf) { lastHalf = half; if (Math.random() < 0.7) { v.pause(); holdUntil = now + rand(0.6, 4) * 1000; } }
-    if (v.paused && now >= holdUntil) { v.playbackRate = rand(0.75, 1); v.play().catch(() => {}); }
-    v.style.transform = 'scale(' + (1 + Math.min(1, voiceEnv()) * 0.012).toFixed(4) + ')';
-    raf = requestAnimationFrame(frame);
-  }
   function sync() {
-    const use = on(); box.classList.toggle('real', use); box.classList.toggle('dozing', use && !awake);
+    const use = on(); box.classList.toggle('real', use);
     $('#stage').style.visibility = st.show && !use ? 'visible' : 'hidden'; Bird.setVisible(st.show && !use);
-    v.style.visibility = st.show ? 'visible' : 'hidden';
-    if (use && awake) { holdUntil = 0; if (!raf) raf = requestAnimationFrame(frame); } else v.pause();
+    Photo.setVisible(use); Photo.setAsleep(!awake);
   }
-  v.addEventListener('error', () => { ok = false; sync(); });
+  Photo.init($('#photo'), window.PERCHY_MEDIA, {getEnv: voiceEnv}).catch(() => { ok = false; sync(); });
   return {sync};
 })();
 const showBird = on => { $('#hiddenMsg').hidden = on; Real.sync(); };
