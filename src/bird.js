@@ -121,7 +121,7 @@ const Bird = (() => {
   const HS = 1.08, HC = [0, 95.5, 14.5], HPIV = [0, -8.6, -3.2], HR = [16.6, 16.7, 17.6];                        // head centre, the point it turns about, its radii
   const PROF = [[-0.05, 0], [0.03, 9.5], [0.15, 19.5], [0.3, 26.5], [0.45, 29.6], [0.6, 28.6], [0.8, 23.4], [0.9, 19.6], [1, 16], [1.1, 14]];
   let S = [], NS = 0;                                           // the feathers ("surfels")
-  let order = null, depth = null, scr = null;
+  let order = null, depth = null, scr = null, lens = null;
   function prof(t, build) {
     let i = 0; while (i < PROF.length - 2 && t > PROF[i + 1][0]) i++;
     const a = PROF[i], b = PROF[i + 1], u = clamp((t - a[0]) / (b[0] - a[0]), 0, 1), r = lerp(a[1], b[1], ease(u) * 0.5 + u * 0.5);
@@ -166,18 +166,22 @@ const Bird = (() => {
     // folded wings: scalloped feathers lying over the sides and back, then the long flight feathers
     for (const sd of [1, -1]) {
       const bone = sd > 0 ? BONE.wingR : BONE.wingL;
+      // the same feathers have a second home: laid out as an open wing, reaching out, down and back from the shoulder
+      const SH = [sd * 17, 75, 0], WA = norm([sd * 0.8, -0.5, -0.33]), WN = norm([sd * 0.28, 0.42, 0.86]), WT = norm(cross(WN, [WA[0] * sd, WA[1] * sd, WA[2] * sd])), WL = 60;
+      if (WT[1] > 0) { WT[0] = -WT[0]; WT[1] = -WT[1]; WT[2] = -WT[2]; }
+      const open = (u, v, ang, lift) => { const ca = Math.cos(ang), sa = Math.sin(ang), ch0 = 26 * (1 - 0.35 * u); return {sx: SH[0] + WA[0] * u * WL + WT[0] * v * ch0 + WN[0] * lift, sy: SH[1] + WA[1] * u * WL + WT[1] * v * ch0 + WN[1] * lift, sz: SH[2] + WA[2] * u * WL + WT[2] * v * ch0 + WN[2] * lift, stx: WT[0] * ca + WA[0] * sa, sty: WT[1] * ca + WA[1] * sa, stz: WT[2] * ca + WA[2] * sa, snx: WN[0], sny: WN[1], snz: WN[2], sp: 1}; };
       for (let t = 0.9; t > 0.36;) {
         const k = (0.9 - t) / 0.54, l = 5.5 + 8.5 * k, w = l * 0.86, rad = prof(t, B) + 2.4, a0 = (58 + 46 * k) * RAD, a1 = 170 * RAD, n = Math.max(2, Math.round((a1 - a0) * rad / (w * 0.52)));
-        for (let i = 0; i <= n; i++) { const phi = a0 + (i + (r() - 0.5) * 0.4) / n * (a1 - a0); add(bone, bodyFrame(t + (r() - 0.5) * 0.01, sd * phi, 2.4, B), w, l, 'scallop', {bias: 3, lift: 0.1, fl: 0.6, br: 0.3}); }
+        for (let i = 0; i <= n; i++) { const phi = a0 + (i + (r() - 0.5) * 0.4) / n * (a1 - a0); add(bone, bodyFrame(t + (r() - 0.5) * 0.01, sd * phi, 2.4, B), w, l, 'scallop', Object.assign({bias: 3, lift: 0.1, fl: 0.6, br: 0.3}, open(0.04 + k * 0.8 + (r() - 0.5) * 0.05, (i / n) * 0.5, k * 0.5, 2 - (i / n) * 1.5))); }
         t -= l * 0.4 / AXL;
       }
       for (let i = 0; i < 6; i++) {                               // secondaries
         const f = bodyFrame(0.56 - 0.045 * i, sd * (118 + 9 * i) * RAD, 3, B), tip = bodyFrame(0.3 - 0.03 * i, sd * (140 + 6 * i) * RAD, 3.5, B), d = sub(tip.p, f.p), L = Math.hypot(d[0], d[1], d[2]);
-        add(bone, {p: f.p, n: f.n, t: norm(d)}, 7.5, L, 'second', {anchor: 0.04, bias: 4 + i * 0.2, lift: 0, fl: 0.2, fan: sd * (i - 1) * 0.5, two: 1});
+        add(bone, {p: f.p, n: f.n, t: norm(d)}, 7.5, L, 'second', Object.assign({anchor: 0.04, bias: 4 + i * 0.2, lift: 0, fl: 0.2, fan: sd * (i - 1) * 0.5, two: 1}, open(0.08 + i * 0.085, 0.42, 0.04 + i * 0.05, 0.6 - i * 0.1), {sl: 27 + i}));
       }
       for (let i = 0; i < 6; i++) {                               // primaries, their tips crossing over the base of the tail
         const f = bodyFrame(0.46 - 0.03 * i, sd * (146 + 4.5 * i) * RAD, 3.6, B), tip = bodyPos(-0.16 + 0.045 * i, sd * 172 * RAD, 5 + i, B), d = sub(tip, f.p), L = Math.hypot(d[0], d[1], d[2]);
-        add(bone, {p: f.p, n: f.n, t: norm(d)}, 6.2, L, 'prim', {anchor: 0.04, bias: 5 + i * 0.2, lift: 0, fl: 0.15, fan: sd * (i + 1), two: 1});
+        add(bone, {p: f.p, n: f.n, t: norm(d)}, 6.2, L, 'prim', Object.assign({anchor: 0.04, bias: 5 + i * 0.2, lift: 0, fl: 0.15, fan: sd * (i + 1), two: 1}, open(0.56 + i * 0.07, 0.45 - i * 0.05, 0.3 + i * 0.2, -0.2 - i * 0.12), {sl: 40 - i * 1.5}));
       }
     }
     // tail: long feathers from the rump, the middle pair longest
@@ -221,7 +225,7 @@ const Bird = (() => {
     for (const sgn of [1, -1]) { const e = headFrame(57 * RAD, sgn * 66 * RAD, 0.2); add(1, e, 1, 1, 'spot', {kind: 2, bias: 2.5, lift: 0, fl: 0.4, side: sgn}); }
     add(1, {p: [0, -6, 19], n: [0, 0, 1], t: [0, -1, 0]}, 1, 1, 'spot', {kind: 3, bias: 4, lift: 0, fl: 0, two: 1});     // the beak, drawn as one smooth piece
     for (const f of list) if (f.bone === 1 || f.bone === 2) { f.x *= HS; f.y *= HS; f.z *= HS; f.w *= HS; f.l *= HS; }
-    S = list; NS = S.length; order = new Uint16Array(NS); depth = new Float32Array(NS); scr = new Float32Array(NS * 8);
+    S = list; NS = S.length; order = new Uint16Array(NS); depth = new Float32Array(NS); scr = new Float32Array(NS * 8); lens = new Float32Array(NS);
   }
 
   // ----- pose: a set of springs, so every change of mind turns into a smooth movement -----
@@ -230,7 +234,7 @@ const Bird = (() => {
   sp('perch', 9, 0.9); sp('byaw', 5.5, 0.9, -18); sp('bpitch', 8, 0.72); sp('broll', 8, 0.7); sp('by', 12, 0.65);
   sp('hyaw', 21, 0.78); sp('hpitch', 21, 0.78); sp('hroll', 17, 0.72); sp('hx', 15, 0.75); sp('hy', 15, 0.7); sp('hz', 14, 0.8);
   sp('jaw', 42, 1); sp('lid', 55, 1, 1); sp('fluff', 3.2, 1, 1); sp('ruffle', 9, 1); sp('throat', 30, 0.9);
-  sp('tpitch', 10, 0.42); sp('tyaw', 10, 0.4); sp('tfan', 8, 0.8); sp('wingR', 6.5, 0.85); sp('wingL', 6.5, 0.85); sp('dim', 1.4, 1, 1); sp('angle', 5, 1);
+  sp('tpitch', 10, 0.42); sp('tyaw', 10, 0.4); sp('tfan', 8, 0.8); sp('wingR', 6.5, 0.85); sp('wingL', 6.5, 0.85); sp('spR', 5.2, 0.88); sp('spL', 5.2, 0.88); sp('dim', 1.4, 1, 1); sp('angle', 5, 1);
   let held = false, T = 0, asleep = true, getEnv = () => 0, lively = 1, branchAngle = 0;
   const gaze = {yaw: 0, pitch: 0, roll: 0}; let baseYaw = -18, nextLook = 0, looks = 0, stillUntil = 0, sleekUntil = 0, nextBlink = 2, blinkUntil = 0, nextIdle = 4, fluffHold = 0, fluffHoldUntil = 0, act = null, queue = [], sleepSide = 1, breath = 0, lastAct = '';
   const feet = [{u: -8.5, from: 0, to: 0, p: 1, lift: 0}, {u: 8.5, from: 0, to: 0, p: 1, lift: 0}];
@@ -252,6 +256,8 @@ const Bird = (() => {
       run(a, p, o) { const w = Math.sin(p * 2 * PI * a.n) * envl(p, 0.12, 0.2); o.hy += w * (4 + 5.5 * a.e); o.hpitch += w * (7 + 7 * a.e); o.bpitch += w * 3.2 * a.e; o.by += Math.min(0, w) * 1.6 * a.e; o.tpitch -= w * 7 * a.e; o.sleek = 0.3; } },
     yawn: {make() { return {dur: 2.1}; },
       run(a, p, o) { const k = Math.pow(Math.sin(PI * p), 0.8); o.jaw = 1.7 * k; o.hpitch -= 15 * k; o.hy += 3 * k; o.hz += 1.5 * k; o.lid = sstep(0.4, 0.75, k); o.fluffAdd = 0.25 * k; } },
+    spread: {make() { return {dur: 3.6, side: rnd() < 0.5 ? -1 : 1}; },           // the one-sided wing stretch: a wing opens down and back, the tail fans toward it
+      run(a, p, o) { const k = envl(p, 0.3, 0.3), s = a.side; o[s > 0 ? 'spR' : 'spL'] = k * (0.94 + 0.06 * Math.sin(p * 40)); o.broll += s * 5 * k; o.byaw = lerp(o.byaw, -s * 22, k); o.by += 1.2 * k; o.tfan = k; o.tyaw += s * 16 * k; o.hpitch += 6 * k; o.hyawW = s * 30; o.lidAdd = 0.3 * k; } },
     stretch: {make() { return {dur: 3.3, side: rnd() < 0.5 ? -1 : 1}; },
       run(a, p, o) { const k = envl(p, 0.3, 0.3), s = a.side; o[s > 0 ? 'wingR' : 'wingL'] = 0.16 * k; o.broll += s * 8 * k; o.byaw -= s * 12 * k; o.bpitch -= 4 * k; o.by += 2.2 * k; o.tfan = k; o.tyaw += s * 15 * k; o.hpitch -= 8 * k; o.hy += 3.5 * k; o.sleek = 0.35 * k; o.hyawW = -s * 22; o.lidAdd = 0.35 * k; } },
     shake: {make() { return {dur: 2.1}; },
@@ -283,7 +289,7 @@ const Bird = (() => {
     // what the bird would do left alone: breathe, shift its weight, keep its head busy
     const o = {perch: c.perch.t, byaw: baseYaw + 3.5 * noise(T * 0.31, 1) * L, bpitch: 1.6 * noise(T * 0.4, 2) * L, broll: 1.5 * noise(T * 0.27, 3) * L, by: 0.5 * noise(T * 0.5, 4) + 0.25 * breath,
       hyaw: 1.4 * noise(T * 1.5, 5), hpitch: 1.3 * noise(T * 1.2, 6) - 0.5 * breath, hroll: 1.6 * noise(T * 0.8, 7), hx: 0, hy: 0.35 * breath, hz: 0, jaw: 0, lid: 0, lidAdd: 0, fluffAdd: 0, sleek: 0, ruffle: 0, throat: 0,
-      tpitch: 1.6 * breath + 1.5 * noise(T * 0.6, 8), tyaw: 2.5 * noise(T * 0.45, 9) * L, tfan: 0, wingR: 0, wingL: 0, hold: 0, hyawL: 0, hpitchL: 0, hrollL: 0, hyawW: null};
+      tpitch: 1.6 * breath + 1.5 * noise(T * 0.6, 8), tyaw: 2.5 * noise(T * 0.45, 9) * L, tfan: 0, wingR: 0, wingL: 0, spR: 0, spL: 0, hold: 0, hyawL: 0, hpitchL: 0, hrollL: 0, hyawW: null};
     if (act) { const p = (T - act.t0) / act.dur; if (p >= 1) { const A = ACTS[act.name]; act = null; if (A.end) A.end(); nextIdle = T + rr(1.8, 6) / L; } else ACTS[act.name].run(act, p, o); }
     // the head keeps its own line of sight while the body moves under it, as a real bird's does
     let gy = gaze.yaw; if (o.hyawW != null && T > stillUntil) gy = lerp(gy, o.hyawW, 0.5);
@@ -294,7 +300,7 @@ const Bird = (() => {
     if (asleep) { hyaw = sleepSide * 124; hpitch = 16; hroll = -sleepSide * 6; o.hy = -5 + 0.5 * breath; o.hx = sleepSide * 2; o.by = -2.4 + 0.3 * breath; fluff = Math.max(fluff, 0.95); lid = 1; o.byaw = baseYaw; o.jaw = 0; o.tpitch = 2.2 * breath; o.tyaw = 0; }
     if (!asleep && T > nextBlink) { blinkUntil = T + 0.11; nextBlink = T + (rnd() < 0.2 ? 0.3 : rr(1.6, 5.5)); }
     const set = {perch: o.perch, byaw: o.byaw, bpitch: o.bpitch, broll: o.broll + branchAngle * 0.12, by: o.by, hyaw, hpitch, hroll, hx: o.hx, hy: o.hy, hz: o.hz, jaw: o.jaw, lid, fluff, ruffle: o.ruffle, throat: o.throat,
-      tpitch: o.tpitch - 0.5 * c.bpitch.x, tyaw: o.tyaw - 0.09 * c.byaw.v - 0.25 * c.perch.v, tfan: o.tfan, wingR: o.wingR, wingL: o.wingL, dim: asleep ? 1 : 0, angle: branchAngle};
+      tpitch: o.tpitch - 0.5 * c.bpitch.x, tyaw: o.tyaw - 0.09 * c.byaw.v - 0.25 * c.perch.v, tfan: o.tfan, wingR: o.wingR, wingL: o.wingL, spR: o.spR, spL: o.spL, dim: asleep ? 1 : 0, angle: branchAngle};
     const slow = asleep ? 0.33 : 1, n = Math.max(1, Math.ceil(dt / 0.012)), h = dt / n;
     for (const k in c) { const s = c[k], w = s.w * (k === 'dim' || k === 'angle' || k === 'lid' ? 1 : slow); s.t = set[k]; for (let i = 0; i < n; i++) { s.v += (w * w * (s.t - s.x) - 2 * s.z * w * s.v) * h; s.x += s.v * h; } }
     // feet: each one steps on its own when the body has moved far enough away from it
@@ -341,7 +347,7 @@ const Bird = (() => {
   }
   const LX = -0.58, LY = 0.72, LZ = 0.38;
   function project() {
-    const c = ch, s = spec.size, fluff = c.fluff.x, ruf = c.ruffle.x, thr = c.throat.x, jawOpen = c.jaw.x, fanT = c.tfan.x, wR = c.wingR.x, wL = c.wingL.x;
+    const c = ch, s = spec.size, fluff = c.fluff.x, ruf = c.ruffle.x, thr = c.throat.x, jawOpen = c.jaw.x, fanT = c.tfan.x, wR = c.wingR.x, wL = c.wingL.x, spR = c.spR.x, spL = c.spL.x;
     let n = 0;
     for (let i = 0; i < NS; i++) {
       const f = S[i], b = M[f.bone], m = b.m;
@@ -350,17 +356,23 @@ const Bird = (() => {
       const dsp = f.fl * 2.6 * fluff + f.br * 1.0 * breath + (f.th ? thr * 1.1 : 0);
       let tx = f.tx, ty = f.ty, tz = f.tz;
       if (f.fan) { const a = f.fan * (f.bone === 4 ? 0.05 * fanT + 0.004 * breath : 0.075 * (f.bone === 5 ? wR : wL)); tx += a; }
-      const cl = Math.cos(lift), sl = Math.sin(lift); tx = tx * cl + f.nx * sl; ty = ty * cl + f.ny * sl; tz = tz * cl + f.nz * sl;
-      const px = f.x + f.nx * dsp, py = f.y + f.ny * dsp + (f.up ? jawOpen * 0.5 : 0), pz = f.z + f.nz * dsp;
-      const nz = m[6] * f.nx + m[7] * f.ny + m[8] * f.nz;
-      if (!f.two && nz < -0.32) continue;
-      const nx = m[0] * f.nx + m[1] * f.ny + m[2] * f.nz, ny = m[3] * f.nx + m[4] * f.ny + m[5] * f.nz;
+      let fnx = f.nx, fny = f.ny, fnz = f.nz, px, py, pz, len = f.l;
+      const w = f.sp ? ease(clamp(f.bone === 5 ? spR : spL, 0, 1)) : 0;
+      if (w > 0.002) {                                           // wing feathers slide from their folded place to their open one
+        const u = 1 - w; fnx = fnx * u + f.snx * w; fny = fny * u + f.sny * w; fnz = fnz * u + f.snz * w; const nl = Math.hypot(fnx, fny, fnz) || 1; fnx /= nl; fny /= nl; fnz /= nl;
+        tx = tx * u + f.stx * w; ty = ty * u + f.sty * w; tz = tz * u + f.stz * w; const tl = Math.hypot(tx, ty, tz) || 1; tx /= tl; ty /= tl; tz /= tl;
+        px = (f.x + f.nx * dsp) * u + f.sx * w; py = (f.y + f.ny * dsp) * u + f.sy * w; pz = (f.z + f.nz * dsp) * u + f.sz * w; if (f.sl) len = f.l * u + f.sl * w; lift *= u;
+      } else { px = f.x + f.nx * dsp; py = f.y + f.ny * dsp + (f.up ? jawOpen * 0.5 : 0); pz = f.z + f.nz * dsp; }
+      const cl = Math.cos(lift), sl = Math.sin(lift); tx = tx * cl + fnx * sl; ty = ty * cl + fny * sl; tz = tz * cl + fnz * sl;
+      const nz = m[6] * fnx + m[7] * fny + m[8] * fnz, both = f.two || w > 0.15;
+      if (!both && nz < -0.32) continue;
+      const nx = m[0] * fnx + m[1] * fny + m[2] * fnz, ny = m[3] * fnx + m[4] * fny + m[5] * fnz;
       const X = b.t[0] + s * (m[0] * px + m[1] * py + m[2] * pz), Y = b.t[1] + s * (m[3] * px + m[4] * py + m[5] * pz), Z = b.t[2] + s * (m[6] * px + m[7] * py + m[8] * pz);
       const TX = m[0] * tx + m[1] * ty + m[2] * tz, TY = m[3] * tx + m[4] * ty + m[5] * tz, TZ = m[6] * tx + m[7] * ty + m[8] * tz;
       let BX = ny * TZ - nz * TY, BY = nz * TX - nx * TZ;         // across the feather
       const o8 = i * 8; scr[o8] = X; scr[o8 + 1] = Y; scr[o8 + 2] = TX; scr[o8 + 3] = TY; scr[o8 + 4] = BX; scr[o8 + 5] = BY;
-      let lit = 0.5 + 0.5 * (nx * LX + ny * LY + (f.two ? Math.abs(nz) : nz) * LZ); lit = Math.pow(lit, 1.25) * f.ao * 1.12 * (1 + 0.1 * Math.min(0, ny));
-      scr[o8 + 6] = lit; scr[o8 + 7] = nz;
+      let lit = 0.5 + 0.5 * (nx * LX + ny * LY + (both ? Math.abs(nz) : nz) * LZ); lit = Math.pow(lit, 1.25) * f.ao * 1.12 * (1 + 0.1 * Math.min(0, ny));
+      scr[o8 + 6] = lit; scr[o8 + 7] = nz; lens[i] = len;
       depth[i] = Z + f.bias * s; order[n++] = i;
     }
     const ord = order.subarray(0, n); ord.sort((a, b2) => depth[a] - depth[b2]);
@@ -382,7 +394,7 @@ const Bird = (() => {
         if (tl < mt) { if (tl < 0.01) { tx = 0; ty = -mt; } else { tx *= mt / tl; ty *= mt / tl; } } if (bl < mb) { if (bl < 0.01) { bx = mb; by = 0; } else { bx *= mb / bl; by *= mb / bl; } }
       }
       if (f.a < 1 || f.mouth) g.globalAlpha = f.mouth ? clamp(ch.jaw.x * 3, 0, 1) : f.a;
-      g.setTransform(bx * f.w * s, -by * f.w * s, tx * f.l * s, -ty * f.l * s, X, Y);
+      g.setTransform(bx * f.w * s, -by * f.w * s, tx * lens[i] * s, -ty * lens[i] * s, X, Y);
       g.drawImage(atlas, sx, m.y, m.w, m.h, -0.5, -f.anchor, 1, 1);
       if (f.a < 1 || f.mouth) g.globalAlpha = 1;
     }
@@ -566,6 +578,7 @@ const Bird = (() => {
     // the real bird called: stop, turn to face it, cock the head, pull the feathers in
     notice() { if (asleep) return; if (act && act.name !== 'bob') act = null; gaze.yaw = rr(-9, 9); gaze.pitch = rr(-7, 2); gaze.roll = (rnd() < 0.5 ? -1 : 1) * rr(9, 22); stillUntil = T + 1.1; sleekUntil = T + 1.8; nextLook = T + 1.2; nextIdle = Math.max(nextIdle, T + 1.6); ch.by.v += 14; },
     listenUp(sec) { if (asleep) return; gaze.yaw = (rnd() < 0.5 ? -1 : 1) * rr(30, 70); gaze.pitch = rr(-12, -2); gaze.roll = rr(-18, 18); stillUntil = Math.max(stillUntil, T + Math.min(sec, 2.5)); sleekUntil = T + sec; },
+    actNow(type) { if (asleep || !ACTS[type]) return false; queue = []; start(type, type === 'bob' ? 1 : undefined); nextIdle = T + 6; return true; },
     startAct(type, now, energy) { if (!asleep && ACTS[type]) { if (act) queue = [[type, energy]]; else start(type, energy); } },
     test: {
       manual(seed) { manual = true; rnd = rng(seed || 1); resize(); },

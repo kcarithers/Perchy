@@ -342,6 +342,15 @@ $('#delBird').onclick = () => { st.birds = st.birds.filter(b => b.id !== st.bird
 $('#lively').value = st.lively; $('#lively').oninput = e => { st.lively = +e.target.value; Bird.setLively(st.lively); save(); };
 $('#angle').value = st.angle; $('#angle').oninput = e => { st.angle = +e.target.value; Bird.setAngle(st.angle); save(); };
 
+// A button for every movement, so each can be seen on demand
+for (const [label, act] of [['Spread wing', 'spread'], ['Stretch', 'stretch'], ['Shuffle', 'shuffle'], ['Preen', 'preen'], ['Yawn', 'yawn'], ['Ruffle and shake', 'shake'], ['Tail wag', 'tailwag'], ['Peer', 'peer'], ['Turn around', 'turn'], ['Head bob', 'bob'], ['Look at your bird', 'notice'], ['Chirp', 'chirp']]) {
+  const b = document.createElement('button'); b.className = 'btn'; b.textContent = label; $('#actBtns').append(b);
+  b.onclick = async () => {
+    if (!awake) { toast('Wake Perchy first'); return; }
+    if (act === 'chirp') { await loadSounds(); callOut(true); } else if (act === 'notice') Bird.notice(); else Bird.actNow(act);
+  };
+}
+
 Bird.init($('#stage'), {getEnv: voiceEnv, spec: st.spec || allBirds().find(b => b.id === st.bird) || Bird.PRESETS[0], angle: st.angle, lively: st.lively});
 fillControls(Bird.getSpec()); renderBirds();
 showBird(st.show); renderTiles(); setStatus();
