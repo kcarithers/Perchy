@@ -166,14 +166,14 @@ const Photo = (() => {
       g.restore(); g.globalAlpha = alpha;
     }
     g.save(); g.translate(0, BEAK_TOP); g.scale(1, 1 - 0.1 * Math.min(1.3, o)); g.translate(0, -BEAK_TOP - 2 * o); g.drawImage(img[P.beak], HEAD[0], HEAD[1]); g.restore();
-    for (const [ex, ey, rx, ry] of P.eyes) {                   // living eye: pale iris ring, dark pupil that tightens when it calls, a glint
-      g.save(); g.translate(ex, ey);
-      g.fillStyle = '#16110f'; g.beginPath(); g.ellipse(0, 0, rx + 0.6, ry + 0.6, 0, 0, 7); g.fill();
-      const ir = g.createRadialGradient(0, 0, rx * 0.3, 0, 0, rx); ir.addColorStop(0, '#f4f1e6'); ir.addColorStop(1, '#bdb8a8');
-      g.fillStyle = ir; g.beginPath(); g.ellipse(0, 0, rx - 0.9, ry - 0.9, 0, 0, 7); g.fill();
-      const pk = 0.62 - 0.16 * Math.min(1, o), ox = Math.max(-1, Math.min(1, s.hx * 0.25)) * rx * 0.12;
-      g.fillStyle = '#0b0908'; g.beginPath(); g.ellipse(ox, 0.3, rx * pk, ry * pk, 0, 0, 7); g.fill();
-      g.fillStyle = 'rgba(255,255,255,.92)'; g.beginPath(); g.ellipse(ox - rx * 0.22, -ry * 0.28, Math.max(0.9, rx * 0.17), Math.max(0.9, ry * 0.17), 0, 0, 7); g.fill();
+    for (const [ex, ey, rx, ry] of P.eyes) {                   // soft glossy bead: warm dark iris fading into a darker pupil, one small soft glint
+      g.save(); g.translate(ex, ey); g.scale(1, ry / rx);
+      const R = rx + 1.2, bead = g.createRadialGradient(0, 0.3, 0, 0, 0, R);
+      bead.addColorStop(0, '#060505'); bead.addColorStop(0.42, '#0d0a09'); bead.addColorStop(0.72, '#3b2c24'); bead.addColorStop(0.9, '#241b17'); bead.addColorStop(1, 'rgba(36,27,23,0)');
+      g.fillStyle = bead; g.beginPath(); g.arc(0, 0, R, 0, 7); g.fill();
+      const gl = g.createRadialGradient(-rx * 0.28, -rx * 0.34, 0, -rx * 0.28, -rx * 0.34, Math.max(1.6, rx * 0.34));
+      gl.addColorStop(0, 'rgba(255,255,255,.8)'); gl.addColorStop(1, 'rgba(255,255,255,0)');
+      g.fillStyle = gl; g.beginPath(); g.arc(-rx * 0.28, -rx * 0.34, Math.max(1.6, rx * 0.34), 0, 7); g.fill();
       g.restore();
     }
     if (s.lid > 0.05) for (const [ex, ey, rx, ry] of P.eyes) {   // closed eye: the eye blends into the face feathers and a dark curved lash line remains
