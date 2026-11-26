@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Paints the branch, background, tail and wing for the portrait bird and gives them the same painted
+"""Paints the branch, background, and tail for the portrait bird and gives them the same painted
 finish as the bird layers (see sprites.py). Writes into src/media. Run: python3 tools/scene.py"""
 import cv2, numpy as np, pathlib
 from PIL import Image
@@ -65,18 +65,6 @@ def tail():
     yy = np.mgrid[0:h, 0:w][0].astype(np.float32) / h; img *= (0.62 + 0.42 * np.clip(yy * 2.2, 0, 1))[:, :, None]      # in the branch's shadow near the top
     save(soft(np.clip(img, 0, 255).astype(np.uint8)), cv2.GaussianBlur(al, (0, 0), 2.2), 'tail.webp')
 
-def wing():
-    # broad overlapping feathers so the wing reads as one surface; colours follow the bird: grey-blue flights, black coverts scalloped in white
-    w, h = 360 * K, 330 * K; img, al = layer(w, h, '#4a5d78'); o = np.array([30.0 * K, 150.0 * K])
-    for i in range(11): paint_feather(img, al, o, 0.86 - i * 0.135 + rng.uniform(-0.012, 0.012), (292 - abs(i - 7.5) * 15 + rng.uniform(-5, 5)) * K, 33 * K, rgb(['#5f7697', '#566c8c', '#647b9b'][i % 3]), edge=rgb('#c9d6e2'), edge_w=1.5 * K)
-    for i in range(10): paint_feather(img, al, o, 0.86 - i * 0.15 + rng.uniform(-0.02, 0.02), (168 - abs(i - 6) * 8 + rng.uniform(-6, 6)) * K, 27 * K, rgb('#3a3f48'), edge=rgb('#e9eeec'), edge_w=3.2 * K)
-    for i in range(8): paint_feather(img, al, o, 0.82 - i * 0.185 + rng.uniform(-0.03, 0.03), (98 + rng.uniform(-8, 8)) * K, 24 * K, rgb('#33373f'), edge=rgb('#eef1ee'), edge_w=3.6 * K, shaft=False)
-    for i in range(6): paint_feather(img, al, o, 0.74 - i * 0.24 + rng.uniform(-0.04, 0.04), (52 + rng.uniform(-5, 5)) * K, 20 * K, rgb('#2f3239'), edge=rgb('#f0f2ef'), edge_w=3.6 * K, shaft=False)
-    m = np.zeros((h, w), np.uint8); cv2.ellipse(m, (int(o[0] + 10 * K), int(o[1] + 4 * K)), (30 * K, 24 * K), 17, 0, 360, 255, -1, cv2.LINE_AA)
-    m = cv2.GaussianBlur(m, (0, 0), 5 * K); a = (m / 255.0)[:, :, None]
-    tex = noise(h, w, 10, 10)[:, :, None]; img[:] = img * (1 - a) + rgb('#39b0e2')[None, None, :] * (0.85 + 0.3 * tex) * a; al = np.maximum(al, m)
-    save(soft(np.clip(img, 0, 255).astype(np.uint8)), cv2.GaussianBlur(al, (0, 0), 1.8), 'wing.webp')
-
 # ---------- background, twig, branch ----------
 def scene():
     h, w = H * K, W * K; yy, xx = np.mgrid[0:h, 0:w].astype(np.float32); X, Y = xx / K, yy / K
@@ -134,4 +122,4 @@ def scene():
     save(br, cv2.GaussianBlur(bmask, (0, 0), 1.3), 'branch.webp')
 
 if __name__ == '__main__':
-    scene(); tail(); wing(); print('painted', [p.name for p in sorted(OUT.iterdir())])
+    scene(); tail(); print('painted', [p.name for p in sorted(OUT.iterdir())])

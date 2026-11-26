@@ -147,7 +147,7 @@ function detect() {
   if (active) {
     if (!c) c = Mic.cur = {start: now, last: now, fsum: 0, n: 0, syl: 1, inGap: false, flats: [], pks: [], low: Math.max(...Mic.lowHist)};
     if (c.inGap) { c.syl++; c.inGap = false; }
-    c.last = now; c.n++; c.fsum += freq; c.flats.push(flat); c.pks.push(pk * binHz);
+    c.last = now; c.n++; c.loud = Math.max(c.loud || 0, bandDb - Mic.floor); c.fsum += freq; c.flats.push(flat); c.pks.push(pk * binHz);
   }
   if (c) {
     c.low = Math.max(c.low, lowEx);
@@ -172,10 +172,11 @@ function finishCall() {
   const why = judge(c);
   if (Mic.log) Mic.log.push({t: Math.round(c.start), dur: Math.round(c.last - c.start + 20), n: c.n, flat: +median(c.flats).toFixed(3), low: +c.low.toFixed(1), why});
   if (why) { if (why !== 'click') { Mic.ignored++; $('#lastIgnored').textContent = why.charAt(0).toUpperCase() + why.slice(1) + ' · ' + new Date().toLocaleTimeString([], {hour: 'numeric', minute: '2-digit'}) + ' · ' + Mic.ignored + ' so far'; } return; }
-  onCall({pitch: c.fsum / c.n, syl: clamp(c.syl, 1, 9), dur: (c.last - c.start) / 1000 + 0.02}, false);
+  onCall({pitch: c.fsum / c.n, syl: clamp(c.syl, 1, 9), dur: (c.last - c.start) / 1000 + 0.02, loud: c.loud || 0}, false);
 }
 
 // ---------- conversation ----------
+let recentCalls = [];
 let awake = false, wakeLock = null, lastReplyAt = 0, pending = null, streak = 0, lastHeardAt = 0, missedCallOuts = 0, nextCallOut = 0, nextFlock = 0;
 function describe(f) { return kHz(f.pitch) + ' · ' + f.syl + (f.syl === 1 ? ' note' : ' notes') + ' · ' + f.dur.toFixed(2) + ' s'; }
 function setCap(t) { $('#cap').textContent = t; }
@@ -191,6 +192,10 @@ function onCall(f, pretend) {
     if (pending && now > pending.t && now - pending.t < 6000) { S.fav[pending.id] = (S.fav[pending.id] || 0) + 1; S.answered++; streak++; missedCallOuts = 0; }
     else if (now - lastSoundEnd > 12000) streak = 0;
   }
+  // an excited bird bobs: loud, long or rapid-fire calls make Perchy bob its head, harder the more worked up things are
+  recentCalls = recentCalls.filter(t => now - t < 8000); recentCalls.push(now);
+  const excite = (f.loud > 26 ? 1 : 0) + (f.dur > 0.7 ? 1 : 0) + (recentCalls.length >= 3 ? 1 : 0) + (streak >= 2 ? 1 : 0);
+  if (awake && excite && Math.random() < 0.3 + 0.22 * excite) setTimeout(() => Photo.startAct('bob', performance.now(), 0.35 + 0.28 * excite), rand(900, 1500));
   pending = null; lastHeardAt = now; scheduleCallOut();
   if (quietNow()) $('#lastReply').textContent = 'Quiet hours, not answering';
   else if (S.set.answer && (awake || pretend) && now - lastReplyAt > 1600 && now > lastSoundEnd + 300) {
@@ -211,7 +216,7 @@ function reply(f) {
   const rate = clamp(target / clip.pitch, 0.95, 1.05); // lean a little toward your bird's pitch, as flockmates do
   const d = say(clip, {rate, level: rand(0.8, 1)});
   pending = {id: clip.id, t: Date.now() + d * 1000};
-  if (streak >= 2 && Math.random() < 0.5) setTimeout(() => { Bird.startAct('bob', performance.now()); Photo.startAct('bob', performance.now()); }, d * 1000 + 100);
+  if (streak >= 2 && Math.random() < 0.5) setTimeout(() => { Bird.startAct('bob', performance.now()); }, d * 1000 + 100);
   $('#lastReply').textContent = ({chirp: 'Chirp', phrase: 'Phrase', chatter: 'Chatter'})[clip.kind] + ' · ' + kHz(clip.pitch * rate) + ' · ' + d.toFixed(2) + ' s';
   setCap('Answering'); setTimeout(() => { if (awake) setCap(quietNow() ? 'Quiet hours' : 'Listening'); }, d * 1000 + 700);
 }

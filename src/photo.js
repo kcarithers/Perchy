@@ -13,7 +13,7 @@ const Photo = (() => {
   const SLOPE = 0.233, ease = p => p * p * (3 - 2 * p);
   const tg = {rot: 4, hx: 0, hy: 5};
   let nextLook = 0, nextBlink = 0, blinkEnd = 0, stillUntil = 0, act = null, nextShake = 0, fluffUntil = 0, nextIdle = 0;
-  const DUR = {bob: 900, shake: 650, stretch: 2800, yawn: 1600};
+  const DUR = {shake: 650, stretch: 2800, yawn: 1600};
 
   function load(media) {
     return Promise.all(Object.entries(media).map(([k, src]) => new Promise((ok, no) => { const i = new Image(); i.onload = () => { img[k] = i; ok(); }; i.onerror = no; i.src = src; }))).then(() => { POSE.forEach(buildMesh); ready = true; });
@@ -38,7 +38,7 @@ const Photo = (() => {
     let rot = tg.rot, hx = tg.hx, hy = tg.hy;
     let hop = 0, lean = 0, wing = 0, yawn = 0;
     if (!asleep && !speaking && !act && now > nextIdle && now > stillUntil) {
-      begin(['shuffle', 'shuffle', 'stretch', 'yawn'][Math.floor(Math.random() * 4)], now); nextIdle = now + rnd(9, 24) * 1000;
+      begin(['shuffle', 'shuffle', 'stretch', 'yawn', 'bob', 'bob'][Math.floor(Math.random() * 6)], now); nextIdle = now + rnd(9, 24) * 1000;
     }
     if (act) {
       const p = Math.max(0, (now - act.t0) / act.dur);
@@ -47,11 +47,11 @@ const Photo = (() => {
         const q = p * act.steps, i = Math.floor(q), f = q - i;
         s.px = act.from + act.dist * (i + ease(f)) / act.steps; hop = -5 * Math.sin(Math.PI * f); lean = Math.sign(act.dist) * 0.035 * Math.sin(Math.PI * f); hx += Math.sign(act.dist) * 3;
       }
-      else if (act.type === 'stretch') {                       // one wing fans out and down, the body leans away
-        wing = p < 0.3 ? ease(p / 0.3) : p > 0.72 ? ease((1 - p) / 0.28) : 1; lean = -0.03 * wing; rot -= 5 * wing; hx -= 3 * wing;
+      else if (act.type === 'stretch') {                       // a tall sideways stretch: the body rises and leans, the neck reaches, the tail swings out
+        wing = p < 0.3 ? ease(p / 0.3) : p > 0.72 ? ease((1 - p) / 0.28) : 1; lean = -0.055 * wing * act.side; rot -= 6 * wing * act.side; hy -= 7 * wing; hx -= 3 * wing * act.side;
       }
       else if (act.type === 'yawn') { yawn = Math.pow(Math.sin(Math.PI * p), 0.7); hy -= 6 * yawn; rot -= 4 * yawn; }
-      else if (act.type === 'bob') hy += Math.sin(p * Math.PI * 8) * 6 * (1 - p * 0.3);
+      else if (act.type === 'bob') { const e = act.energy, w = Math.sin(p * Math.PI * 2 * act.n); hy += w * (5 + 6 * e) * (1 - p * 0.25); rot += w * 2 * e; hop = Math.max(0, w) * 2 * e; }   // quick up-and-down bobs
       else if (act.type === 'shake') { rot += Math.sin(p * Math.PI * 14) * 6 * Math.sin(p * Math.PI); hx += Math.sin(p * Math.PI * 14 + 1) * 3 * Math.sin(p * Math.PI); }
     }
     if (speaking) { hy -= 3 * env; rot -= 1.5 * env; }
@@ -67,14 +67,12 @@ const Photo = (() => {
     s.fluff += (fl - s.fluff) * (1 - Math.exp(-dt * 2.5));
     s.dim += ((asleep ? 1 : 0) - s.dim) * (1 - Math.exp(-dt * 1.5));
   }
-  function begin(type, now) {
+  function begin(type, now, energy) {
     if (type === 'shuffle') {
       const dir = s.px > 50 ? -1 : s.px < -70 ? 1 : (Math.random() < 0.5 ? -1 : 1), steps = 2 + Math.floor(Math.random() * 4);
       act = {type, t0: now, dur: steps * 270, steps, from: s.px, dist: dir * steps * rnd(15, 21)};
-    } else if (DUR[type]) act = {type, t0: now, dur: DUR[type]};
-  }
-  function drawWing(e) {                                       // painted wing sprite, hinged at the shoulder and tucked behind the body at rest
-    g.save(); g.translate(432, 418); g.rotate(1.5 - 0.72 * e); g.scale(0.35 + 0.65 * e, 0.45 + 0.55 * e); g.drawImage(img.wing, -30, -150); g.restore();
+    } else if (type === 'bob') { const e = Math.max(0.3, Math.min(1.2, energy || 0.5)), n = 3 + Math.round(3 * e); act = {type, t0: now, energy: e, n, dur: n * 230}; }
+    else if (DUR[type]) act = {type, t0: now, dur: DUR[type], side: Math.random() < 0.5 ? -1 : 1};
   }
   // The head is a mesh: cells above the chin move rigidly, cells at the neck stay with the body, and the ones
   // between bend, so the head never slides off its shoulders.
@@ -152,7 +150,6 @@ const Photo = (() => {
   function drawBird(pose, alpha) {                           // body and head for one pose; pose 2 is pose 0 mirrored
     const P = POSE[pose === 2 ? 0 : pose];
     g.save(); if (pose === 2) { g.translate(2 * MX, 0); g.scale(-1, 1); }
-    if (s.wing > 0.02) drawWing(s.wing);
     g.globalAlpha = alpha; g.drawImage(img[P.body], 0, 0); drawHead(P, alpha);
     g.restore();
   }
@@ -168,11 +165,12 @@ const Photo = (() => {
     // the tail is part of the bird: it leans, turns and shuffles with the body, but is painted before the branch so it hangs behind it
     g.save(); g.translate(bx, by + s.hop - 40 - UP); g.translate(FEET[0], FEET[1]); g.rotate(lean); g.translate(-FEET[0], -FEET[1]);
     if (pose === 2) { g.translate(2 * MX, 0); g.scale(-1, 1); }
-    g.translate(pose === 1 ? 6 : 0, 0); drawTail((pose === 1 ? 0 : 0.07) + Math.sin(s.t * 0.9) * 0.012); g.restore();
+    g.translate(pose === 1 ? 6 : 0, 0); drawTail((pose === 1 ? 0 : 0.07) + Math.sin(s.t * 0.9) * 0.012 - s.lean * 2); g.restore();
     g.drawImage(img.branch, 0, 0, W, H);
     g.save(); g.translate(220 + bx, 672 - UP + by); g.rotate(Math.atan(SLOPE)); g.fillStyle = 'rgba(30,24,20,.28)'; g.beginPath(); g.ellipse(85, -27, 118, 15, 0, 0, 7); g.fill(); g.restore();
     g.translate(bx, by + s.hop - 40 - UP);
-    const breath = Math.sin(s.t * (asleep ? 1.6 : 2.6)) * 0.004, sx = 1 + 0.035 * s.fluff, sy = 1 + breath + 0.012 * s.fluff;
+    const breath = Math.sin(s.t * (asleep ? 1.6 : 2.6)) * 0.004, sx = 1 + 0.035 * s.fluff, sy = 1 + breath + 0.012 * s.fluff + 0.045 * s.wing;
+    g.drawImage(img.legs, 0, 0);                                  // feather tufts over the leg joints, behind the body
     g.save(); g.translate(FEET[0], FEET[1]); g.rotate(lean); g.scale(sx, sy); g.translate(-FEET[0], -FEET[1]);
     if (s.fade < 1) { drawBird(s.from, 1); drawBird(s.pose, s.fade); } else drawBird(s.pose, 1);
     g.restore();
@@ -191,7 +189,7 @@ const Photo = (() => {
     setAsleep(a) { asleep = a; if (a) { if (act && act.type === 'shuffle') s.px = act.from + act.dist; act = null; } if (!a) { nextIdle = performance.now() + rnd(5, 10) * 1000; nextLook = performance.now() + 500; nextBlink = performance.now() + 900; } },
     notice() { const now = performance.now(); setPose(1, now); tg.rot = rnd(4, 8) * (Math.random() < 0.5 ? -1 : 1); tg.hx = 0; tg.hy = -3; stillUntil = now + 900; nextLook = now + 1200; },
     listenUp(sec) { stillUntil = Math.max(stillUntil, performance.now() + sec * 1000); },
-    startAct(type, now) { begin(type, now); },
+    startAct(type, now, energy) { if (!asleep) begin(type, now, energy); },
     pose(p, rot, hx, hy, holdMs) { s.from = s.pose; s.pose = p; s.fade = 1; tg.rot = rot; tg.hx = hx; tg.hy = hy; stillUntil = nextLook = nextIdle = performance.now() + (holdMs || 3000); }   // for testing
   };
 })();

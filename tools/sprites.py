@@ -48,6 +48,13 @@ for name,n,rgb,al,cx,sh in [('bodyA','09',A,aA,570,(0,0)),('bodyB','02',B,aB,593
     fm=feetmask(n,sh[0],sh[1],al)
     if name=='bodyA':
         fa=cv2.GaussianBlur(np.minimum(fm,al),(0,0),1.2); frgb=np.clip(rgb.astype(np.float32)*np.array([0.80,0.80,0.86])+np.array([10,6,14]),0,255).astype(np.uint8); save(frgb,fa,(CX,CY,CW,CH),'feet.webp')
+    if name=='bodyA':   # feather tufts where the legs meet the belly, made from real belly feathers; drawn behind the body so no gap can open
+        la=np.zeros(al.shape,np.float32); lrgb=rgb.copy()
+        for (cx_,cy_,rx_,ry_) in [(400,1340,25,34),(592,1388,25,32)]:
+            e=1-np.sqrt(((xx-cx_)/rx_)**2+((yy-cy_)/ry_)**2); e=np.clip(e*2.2,0,1)
+            sx_,sy_=470-cx_,1290-cy_; src=np.roll(np.roll(rgb,-sy_,axis=0),-sx_,axis=1)
+            m=e>0; lrgb[m]=(src[m]*0.86).astype(np.uint8); la=np.maximum(la,e*255)
+        save(lrgb,la.astype(np.uint8),(CX,CY,CW,CH),'legs.webp')
     core=((al>128)&(fm==0)).astype(np.uint8)*255
     core=cv2.morphologyEx(core,cv2.MORPH_CLOSE,cv2.getStructuringElement(cv2.MORPH_ELLIPSE,(19,19)))
     core=cv2.morphologyEx(core,cv2.MORPH_OPEN,cv2.getStructuringElement(cv2.MORPH_ELLIPSE,(15,15)))
