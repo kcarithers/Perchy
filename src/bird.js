@@ -179,7 +179,7 @@ const Bird = (() => {
       if (WT[1] > 0) { WT[0] = -WT[0]; WT[1] = -WT[1]; WT[2] = -WT[2]; }
       const open = (u, v, ang, lift) => { const ca = Math.cos(ang), sa = Math.sin(ang), ch0 = 46 * (1 - 0.3 * u); return {sx: SH[0] + WA[0] * u * WL + WT[0] * v * ch0 + WN[0] * lift, sy: SH[1] + WA[1] * u * WL + WT[1] * v * ch0 + WN[1] * lift, sz: SH[2] + WA[2] * u * WL + WT[2] * v * ch0 + WN[2] * lift, stx: WT[0] * ca + WA[0] * sa, sty: WT[1] * ca + WA[1] * sa, stz: WT[2] * ca + WA[2] * sa, snx: WN[0], sny: WN[1], snz: WN[2], sp: 1}; };
       for (let t = 0.83; t > 0.2;) {
-        const k = (0.83 - t) / 0.63, l = 5.5 + 10.5 * k, w = l * 0.86, rad = prof(t, B) + 3, a0 = (88 - 30 * Math.sin(PI * Math.pow(Math.min(1, k * 1.15), 0.6))) * RAD, a1 = 172 * RAD, n = Math.max(2, Math.round((a1 - a0) * rad / (w * 0.52)));
+        const k = (0.83 - t) / 0.63, l = 5.5 + 10.5 * k, w = l * 0.86, rad = prof(t, B) + 3, a0 = (88 - 30 * Math.sin(PI * Math.pow(Math.min(1, k * 1.15), 0.6))) * RAD, a1 = 179 * RAD, n = Math.max(2, Math.round((a1 - a0) * rad / (w * 0.52)));
         for (let i = 0; i <= n; i++) { const phi = a0 + (i + (r() - 0.5) * 0.4) / n * (a1 - a0); add(bone, bodyFrame(t + (r() - 0.5) * 0.01, sd * phi, 1 + 2.8 * Math.min(1, k * 2.5), B), w, l, 'scallop', Object.assign({bias: 3, lift: 0.1, fl: 0.6, br: 0.3}, open(0.02 + k * 0.84 + (r() - 0.5) * 0.05, (i / n) * 0.5, k * 0.6, 2.4 - (i / n) * 1.6), {sw: w * 1.25, sl: l * 1.25})); }
         t -= l * 0.4 / AXL;
       }
@@ -198,22 +198,29 @@ const Bird = (() => {
       const a = ix * 3.2 * RAD, d = norm([TD[0] + Math.sin(a), TD[1], TD[2]]);
       add(BONE.tail, {p: [rump[0] + bx, rump[1] + 3 - Math.abs(ix) * 0.6, rump[2] + 2 - Math.abs(ix) * 0.4], n: TN, t: d}, 7, len * TL, 'tail', {anchor: 0.03, lift: 0, fl: 0, fan: ix, two: 1, bias: -Math.abs(ix) * 0.6, v: Math.abs(Math.round(ix)) % V});
     }
-    // neck: fills in between the head and the shoulders, and rides along when the head moves
-    for (let la = -44; la <= 50; la += 9.4) for (let i = 0, n = Math.round(34 * Math.cos(la * RAD)); i < n; i++) {
-      const lo = (i + r() * 0.5) / n * 2 * PI, cl = Math.cos(la * RAD), d = [Math.sin(lo) * cl, Math.sin(la * RAD), Math.cos(lo) * cl];
-      const up = Math.max(0, d[1]) / 0.77, xr = lerp(19, 13.5, up), p = [d[0] * xr, 87 + d[1] * 17, 9 + d[2] * (d[2] > 0 ? lerp(14.5, 9, up) : 19)], nn = norm([d[0] / 20.2, d[1] / 17, d[2] / 18]), t = norm([-d[0] * d[1] * 0.6, -1 + d[1] * d[1], -0.25 - d[2] * d[1] * 0.6]);
-      const nm = d[2] > 0.5 ? (d[1] > -0.25 ? 'face' : 'body') : d[2] > 0.1 ? 'body' : 'bar';
-      add(BONE.neck, {p, n: nn, t}, nm === 'bar' ? 6.6 : 6.8, nm === 'bar' ? 5.4 : 9, nm, {ao: d[2] > -0.2 ? 0.94 : 1, lift: 0.1});
+    // neck: a sleeve of feathers from inside the back of the head down to the shoulders. Its top matches the head and its foot
+    // matches the back, so the nape is one line from crown to back; it follows the head part-way when the head moves.
+    const NK = (y, lo) => { const q = clamp((106 - y) / 36, 0, 1), cz = lerp(13.2, 0.8, q), xr = lerp(15.6, 20.6, Math.pow(q, 1.25)), zb = lerp(15.4, 19.4, q), zf = lerp(9, 14, q), cl = Math.cos(lo); return [Math.sin(lo) * xr, y, cz + cl * (cl > 0 ? zf : zb)]; };
+    for (let y = 106, row = 0; y > 70; row++) {
+      const q = (106 - y) / 36, small = q < 0.5, l = lerp(4.2, 5.4, Math.min(1, q * 2)) + (small ? 0 : 6 * (q - 0.5)), w = lerp(6, 6.8, Math.min(1, q * 2)) + (small ? 0 : 3 * (q - 0.5)), n = Math.round(2 * PI * lerp(17, 22, q) / (w * 0.46)), o0 = r() * 6.28;
+      for (let i = 0; i < n; i++) {
+        const lo = o0 + (i + (r() - 0.5) * 0.3) * 2 * PI / n, cl = Math.cos(lo), yy = y + (r() - 0.5) * 0.5, P0 = NK(yy, lo), P1 = NK(yy - 1, lo), Pa = NK(yy, lo + 0.04), t = norm(sub(P1, P0));
+        let nn = norm(cross(sub(Pa, P0), t)); if (nn[0] * P0[0] + nn[2] * (P0[2] - 8) < 0) nn = [-nn[0], -nn[1], -nn[2]];
+        const edge = lerp(0.55, -0.15, sstep(0.42, 0.95, q)) + 0.06 * noise(yy * 0.9, 5);                       // the blue of the breast rises in a wedge toward the cheek
+        const nm = cl > edge ? (cl > 0.5 && q < 0.4 ? 'face' : 'body') : small || r() > (q - 0.5) * 2.6 ? 'bar' : 'scallop';
+        add(BONE.neck, {p: P0, n: nn, t}, nm === 'scallop' ? w * 1.1 : w, nm === 'scallop' ? l * 1.3 : l, nm, {lift: 0.08, fl: 0.8, bias: nm === 'body' ? -1 : 0});
+      }
+      y -= l * 0.42;
     }
     // head: rings of small feathers spreading back from the beak, so the barring falls into lines the way it does on a real bird
     let ring = 0;
-    for (let th = 9 * RAD; th < 152 * RAD; ring++) {
+    for (let th = 9 * RAD; th < 174 * RAD; ring++) {
       const l0 = th < 0.5 ? 3.9 : 4.4, n = Math.max(6, Math.round(2 * PI * Math.sin(th) * 17.2 / (l0 * 0.5))), o0 = r() * 6.28;
       for (let i = 0; i < n; i++) {
         const ps = o0 + (i + (r() - 0.5) * 0.35) * 2 * PI / n, cp = Math.cos(ps), tj = th + (r() - 0.5) * 0.008 + 0.03 * noise(ps * 4.3 + ring * 1.7, ring * 0.37) * sstep(0.9, 1.15, th), deg = tj / RAD;
         const lim = 60 + 40 * Math.pow(Math.max(0, cp), 1.6) + 85 * Math.pow(Math.max(0, -cp), 2) + noise(ps * 7, 3) * 2.5;
         const f = headFrame(tj, ps, 0); if (f.p[1] < -18.5 && f.p[2] < 3) continue;              // buried in the neck
-        if (Math.abs(f.p[0]) < 5.4 && f.p[1] > -18.5 && f.p[1] < -0.5 && f.p[2] > 8) continue;      // the beak's own ground: no feathers across it or in the mouth
+        if (Math.abs(f.p[0]) < 4.6 && f.p[1] > -12.4 && f.p[1] < -0.5 && f.p[2] > 8) continue;      // the beak's own ground: no feathers across it or in the mouth
         let mat = 'face', l = l0, w = l0 * 0.86;
         if (deg > lim) { if (cp < -0.8) { mat = 'face'; l = 6; w = 5; } else { mat = r() < 0.05 ? 'face' : 'bar'; w = l0 * 1.4; l = l0 * 0.92; } }
         const ap = Math.abs(((ps % (2 * PI)) + 3 * PI) % (2 * PI) - PI) / RAD;                 // 0 = up ... 180 = down
@@ -223,10 +230,9 @@ const Bird = (() => {
       }
       th += l0 * 0.43 / 17.2;
     }
-    for (let th = 14 * RAD; th < 150 * RAD; th += 0.2) for (let i = 0, n = Math.max(5, Math.round(2 * PI * Math.sin(th) * 17 / 3.6)); i < n; i++) {
+    for (let th = 14 * RAD; th < 176 * RAD; th += 0.2) for (let i = 0, n = Math.max(5, Math.round(2 * PI * Math.sin(th) * 17 / 3.6)); i < n; i++) {
       const ps = (i + 0.5 * (Math.round(th * 5) % 2)) * 2 * PI / n, cp = Math.cos(ps), f = headFrame(th, ps, -1.3);
       if (f.p[1] < -18.5 && f.p[2] < 3) continue;
-      if (Math.abs(f.p[0]) < 3 && f.p[1] > -15 && f.p[1] < -2 && f.p[2] > 8) continue;
       add(1, f, 8, 8, 'faceU', {kind: 1, anchor: 0.5, lift: 0, fl: 0.7, bias: -2.5});
     }
     for (const sgn of [1, -1]) for (const [dp, dth] of [[12, 56], [35, 58], [56, 62]]) {       // the six throat spots
@@ -438,19 +444,19 @@ const Bird = (() => {
   const MESH = (() => {
     const out = [], bz = (u, a, b, c) => (1 - u) * (1 - u) * a + 2 * u * (1 - u) * b + u * u * c;
     function grid(bone, col, nu, nv, fn) { const v = []; for (let i = 0; i <= nu; i++) for (let j = 0; j <= nv; j++) v.push(fn(i / nu, j / nv)); out.push({bone, col, nu, nv, v, w: new Float32Array(v.length * 4)}); }
-    grid(1, [226, 200, 92], 16, 14, (u, q) => {                 // upper mandible: hooked, wide under the cere, coming to a point
-      const cy = bz(u, -2.6, -5.5, -14.8), cz = bz(u, 16.6, 22.6, 18.8), T = norm([0, bz(u + 0.01, -2.6, -5.5, -14.8) - cy, bz(u + 0.01, 16.6, 22.6, 18.8) - cz]), N = [0, T[2], -T[1]];
-      const w = 5.9 * Math.pow(1 - u, 0.62) + 0.05, d = 4.3 * Math.pow(1 - u, 0.55) + 0.05, al = (-118 + 236 * q) * RAD, sa = Math.sin(al), ca = Math.cos(al);
+    grid(1, [226, 200, 92], 26, 22, (u, q) => {                 // upper mandible: hooked, wide under the cere, coming to a point
+      const cy = bz(u, -2, -6, -13.2), cz = bz(u, 16.8, 22.4, 19), T = norm([0, bz(u + 0.01, -2, -6, -13.2) - cy, bz(u + 0.01, 16.8, 22.4, 19) - cz]), N = [0, T[2], -T[1]];
+      const tipR = Math.sqrt(Math.min(1, (1 - u) * 5)), w = 5.9 * Math.pow(1 - u, 0.5) * tipR + 0.05, d = 4.8 * (1 - 0.62 * u) * tipR + 0.05, al = (-118 + 236 * q) * RAD, sa = Math.sin(al), ca = Math.cos(al);
       return [w * sa, cy + N[1] * d * ca, cz + N[2] * d * ca, ...norm([sa / w, N[1] * ca / d + T[1] * 0.3 * u, N[2] * ca / d + T[2] * 0.3 * u])];
     });
-    grid(2, [204, 178, 96], 8, 12, (u, q) => {                   // lower mandible: a small cup tucked under the hook
-      const la = (-88 + 118 * u) * RAD, lo = (-115 + 230 * q) * RAD, d = [Math.sin(lo) * Math.cos(la), Math.sin(la), Math.cos(lo) * Math.cos(la)];
-      return [d[0] * 4.2, -12 + d[1] * 3.2, 14.6 + d[2] * 3.2, ...norm([d[0] / 4.6, d[1] / 3.6, d[2] / 3.6])];
+    grid(2, [206, 180, 90], 12, 18, (u, q) => {                   // lower mandible: a small cup tucked under the hook
+      const la = (-88 + 150 * u) * RAD, lo = (-92 + 184 * q) * RAD, d = [Math.sin(lo) * Math.cos(la), Math.sin(la), Math.cos(lo) * Math.cos(la)];
+      return [d[0] * 3.3, -8.9 + d[1] * 3, 14.4 + d[2] * 3, ...norm([d[0] / 4.6, d[1] / 3.6, d[2] / 3.6])];
     });
-    grid(1, null, 10, 22, (u, q) => {                            // cere: one low smooth band across the top of the beak, dipping a little in the middle
+    grid(1, null, 14, 28, (u, q) => {                            // cere: one low smooth band across the top of the beak, dipping a little in the middle
       const la = (-75 + 165 * u) * RAD, lo = (-105 + 210 * q) * RAD, d = [Math.sin(lo) * Math.cos(la), Math.sin(la), Math.cos(lo) * Math.cos(la)];
       const x = d[0] * 6.6, dip = 1 - 0.2 * Math.exp(-x * x / 3) * Math.max(0, d[1]);
-      return [x, 0.4 + d[1] * 2.5 * dip, 16.3 + d[2] * 2.7 * (1 - 0.07 * Math.exp(-x * x / 3)), ...norm([d[0] / 6.6, d[1] / 2.5, d[2] / 2.7])];
+      return [x, 0.9 + d[1] * 3 * dip, 16.4 + d[2] * 2.9 * (1 - 0.07 * Math.exp(-x * x / 3)), ...norm([d[0] / 6.6, d[1] / 2.5, d[2] / 2.7])];
     });
     return out;
   })();
@@ -476,14 +482,14 @@ const Bird = (() => {
     quads.sort((p, q) => p.z - q.z);
     g.setTransform(1, 0, 0, 1, 0, 0); g.lineJoin = 'round';
     if (ch.jaw.x > 0.05) {                                       // the dark of the open mouth, between the two halves
-      const m = M[1].m, t = M[1].t, j = M[2], p0 = [0, -11.6 * HS, 17 * HS], q0 = [0, -12 * HS, 17.2 * HS];
+      const m = M[1].m, t = M[1].t, j = M[2], p0 = [0, -12 * HS, 16.6 * HS], q0 = [0, -12.6 * HS, 16.8 * HS];
       const ax = cx + (t[0] + s * (m[0] * p0[0] + m[1] * p0[1] + m[2] * p0[2])) * sc, ay = cy - (t[1] + s * (m[3] * p0[0] + m[4] * p0[1] + m[5] * p0[2])) * sc, bx = cx + (j.t[0] + s * (j.m[0] * q0[0] + j.m[1] * q0[1] + j.m[2] * q0[2])) * sc, by = cy - (j.t[1] + s * (j.m[3] * q0[0] + j.m[4] * q0[1] + j.m[5] * q0[2])) * sc;
       g.strokeStyle = 'rgba(52,26,28,' + clamp(ch.jaw.x * 2.5, 0, 0.95).toFixed(3) + ')'; g.lineCap = 'round'; g.lineWidth = 3 * HS * ss; g.beginPath(); g.moveTo(ax, ay); g.lineTo(bx, by); g.stroke();
     }
-    g.lineWidth = Math.max(0.7, 0.2 * ss);
+    g.lineWidth = Math.max(0.5, 0.1 * ss);
     for (const q of quads) { const w = q.w; g.fillStyle = g.strokeStyle = q.col; g.beginPath(); g.moveTo(w[q.a * 4], w[q.a * 4 + 1]); g.lineTo(w[q.b * 4], w[q.b * 4 + 1]); g.lineTo(w[q.c * 4], w[q.c * 4 + 1]); g.lineTo(w[q.d * 4], w[q.d * 4 + 1]); g.closePath(); g.fill(); g.stroke(); }
     for (const sg of [1, -1]) {                                  // nostrils
-      const m = M[1].m, t = M[1].t, p = [sg * 2.7 * HS, 0.7 * HS, 18.75 * HS], nz = m[6] * sg * 0.25 + m[7] * 0.1 + m[8] * 0.96; if (nz < 0.25) continue;
+      const m = M[1].m, t = M[1].t, p = [sg * 2.7 * HS, 1 * HS, 19.15 * HS], nz = m[6] * sg * 0.25 + m[7] * 0.1 + m[8] * 0.96; if (nz < 0.25) continue;
       const X = cx + (t[0] + s * (m[0] * p[0] + m[1] * p[1] + m[2] * p[2])) * sc, Y = cy - (t[1] + s * (m[3] * p[0] + m[4] * p[1] + m[5] * p[2])) * sc, r = 0.42 * HS * ss;
       const gr = g.createRadialGradient(X, Y, 0, X, Y, r); gr.addColorStop(0, 'rgba(46,28,24,' + (0.75 * nz).toFixed(2) + ')'); gr.addColorStop(1, 'rgba(46,28,24,0)'); g.fillStyle = gr; g.beginPath(); g.arc(X, Y, r, 0, 7); g.fill();
     }
