@@ -8,9 +8,11 @@ const Photo = (() => {
   ];
   const img = {}, rnd = (a, b) => a + Math.random() * (b - a);
   let cv, g, getEnv = () => 0, ready = false, visible = false, asleep = true, raf = 0, last = 0, dpr = 1;
-  const s = {rot: 0, hx: 0, hy: 0, open: 0, lid: 1, fluff: 1, dim: 1, pose: 0, from: 0, fade: 1, t: 0};
+  const s = {rot: 0, hx: 0, hy: 0, open: 0, lid: 1, fluff: 1, dim: 1, pose: 0, from: 0, fade: 1, t: 0, px: 0, hop: 0, lean: 0, wing: 0, yawn: 0};
+  const SLOPE = 0.233, ease = p => p * p * (3 - 2 * p);
   const tg = {rot: 4, hx: 0, hy: 5};
-  let nextLook = 0, nextBlink = 0, blinkEnd = 0, stillUntil = 0, act = null, nextShake = 0, fluffUntil = 0;
+  let nextLook = 0, nextBlink = 0, blinkEnd = 0, stillUntil = 0, act = null, nextShake = 0, fluffUntil = 0, nextIdle = 0;
+  const DUR = {bob: 900, shake: 650, stretch: 2800, yawn: 1600};
 
   let scene = null;
   function paintScene() {                                    // soft garden light and a branch, drawn once
@@ -44,7 +46,6 @@ const Photo = (() => {
     for (let i = 0; i < 70; i++) { const bx = rr(-320, 520), by = rr(-44, 46), len = rr(30, 120); x.strokeStyle = by < -20 ? `rgba(255,236,200,${rr(0.08, 0.2)})` : `rgba(48,32,20,${rr(0.1, 0.28)})`; x.lineWidth = rr(1, 2.6); x.beginPath(); x.moveTo(bx, by); x.quadraticCurveTo(bx + len / 2, by + rr(-4, 4), bx + len, by + rr(-2, 2)); x.stroke(); }
     x.fillStyle = 'rgba(52,35,22,.5)'; x.beginPath(); x.ellipse(-150, 8, 20, 11, 0.1, 0, 7); x.fill(); x.fillStyle = 'rgba(120,92,64,.9)'; x.beginPath(); x.ellipse(-150, 8, 12, 6, 0.1, 0, 7); x.fill();
     for (let i = 0; i < 12; i++) { x.fillStyle = `rgba(196,208,170,${rr(0.25, 0.5)})`; x.beginPath(); x.ellipse(rr(-320, 480), rr(-40, 30), rr(4, 11), rr(3, 7), rr(0, 3), 0, 7); x.fill(); }
-    x.fillStyle = 'rgba(30,24,20,.3)'; x.beginPath(); x.ellipse(85, -30, 120, 24, 0, 0, 7); x.fill();        // the bird's shadow on the bark
     x.restore();
     return c;
   }
@@ -69,39 +70,69 @@ const Photo = (() => {
     else if (!speaking && now > stillUntil && now > nextLook && !act) look(now, Math.random() < 0.3);
     const k = 1 - Math.exp(-dt * (asleep ? 3 : 16));
     let rot = tg.rot, hx = tg.hx, hy = tg.hy;
+    let hop = 0, lean = 0, wing = 0, yawn = 0;
+    if (!asleep && !speaking && !act && now > nextIdle && now > stillUntil) {
+      begin(['shuffle', 'shuffle', 'stretch', 'yawn'][Math.floor(Math.random() * 4)], now); nextIdle = now + rnd(9, 24) * 1000;
+    }
     if (act) {
       const p = (now - act.t0) / act.dur;
-      if (p >= 1) act = null;
+      if (p >= 1) { if (act.type === 'shuffle') s.px = act.from + act.dist; act = null; }
+      else if (act.type === 'shuffle') {                       // sidestep along the branch in little hops
+        const q = p * act.steps, i = Math.floor(q), f = q - i;
+        s.px = act.from + act.dist * (i + ease(f)) / act.steps; hop = -5 * Math.sin(Math.PI * f); lean = Math.sign(act.dist) * 0.035 * Math.sin(Math.PI * f); hx += Math.sign(act.dist) * 3;
+      }
+      else if (act.type === 'stretch') {                       // one wing fans out and down, the body leans away
+        wing = p < 0.3 ? ease(p / 0.3) : p > 0.72 ? ease((1 - p) / 0.28) : 1; lean = -0.03 * wing; rot -= 5 * wing; hx -= 3 * wing;
+      }
+      else if (act.type === 'yawn') { yawn = Math.pow(Math.sin(Math.PI * p), 0.7); hy -= 6 * yawn; rot -= 4 * yawn; }
       else if (act.type === 'bob') hy += Math.sin(p * Math.PI * 8) * 6 * (1 - p * 0.3);
       else if (act.type === 'shake') { rot += Math.sin(p * Math.PI * 14) * 6 * Math.sin(p * Math.PI); hx += Math.sin(p * Math.PI * 14 + 1) * 3 * Math.sin(p * Math.PI); }
     }
     if (speaking) { hy -= 3 * env; rot -= 1.5 * env; }
     s.rot += (rot - s.rot) * k; s.hx += (hx - s.hx) * k; s.hy += (hy - s.hy) * k;
-    s.open += (env - s.open) * (1 - Math.exp(-dt * 30));
+    s.open += (Math.max(env, yawn * 1.6) - s.open) * (1 - Math.exp(-dt * 30));
+    s.hop = hop; s.lean = lean; s.wing = wing; s.yawn = yawn;
     s.fade = Math.min(1, s.fade + dt / 0.09);
     if (!asleep && now > nextBlink) { blinkEnd = now + 150; nextBlink = now + rnd(2, 6.5) * 1000; }
-    const lidT = asleep ? 1 : (now < blinkEnd ? 1 : 0);
+    const lidT = asleep ? 1 : (now < blinkEnd ? 1 : 0.75 * yawn);
     s.lid += (lidT - s.lid) * (1 - Math.exp(-dt * (asleep ? 4 : 40)));
     if (!asleep && now > nextShake) { act = {type: 'shake', t0: now, dur: 650}; fluffUntil = now + rnd(4, 9) * 1000; nextShake = now + rnd(35, 90) * 1000; }
     const fl = asleep ? 1 : (now < fluffUntil ? 0.7 : (act && act.type === 'shake' ? 1 : 0));
     s.fluff += (fl - s.fluff) * (1 - Math.exp(-dt * 2.5));
     s.dim += ((asleep ? 1 : 0) - s.dim) * (1 - Math.exp(-dt * 1.5));
   }
+  function begin(type, now) {
+    if (type === 'shuffle') {
+      const dir = s.px > 50 ? -1 : s.px < -70 ? 1 : (Math.random() < 0.5 ? -1 : 1), steps = 2 + Math.floor(Math.random() * 4);
+      act = {type, t0: now, dur: steps * 270, steps, from: s.px, dist: dir * steps * rnd(15, 21)};
+    } else if (DUR[type]) act = {type, t0: now, dur: DUR[type]};
+  }
+  function drawWing(e) {                                       // drawn behind the body, hinged at the shoulder
+    g.save(); g.translate(432, 418); g.rotate(1.5 - 0.72 * e); g.scale(0.35 + 0.65 * e, 0.5 + 0.5 * e);
+    const feather = (ang, len, wid, fill, edge) => { g.save(); g.rotate(ang * e);
+      g.beginPath(); g.moveTo(0, 0); g.bezierCurveTo(len * 0.3, -wid, len * 0.85, -wid * 0.9, len, 0); g.bezierCurveTo(len * 0.85, wid * 0.8, len * 0.3, wid, 0, 0);
+      g.fillStyle = fill; g.fill(); g.strokeStyle = edge; g.lineWidth = 2; g.stroke(); g.restore(); };
+    for (let i = 0; i < 9; i++) feather(-0.52 + i * 0.14, 300 - Math.abs(i - 2.5) * 16, 22, i % 2 ? '#48566b' : '#3d4a5e', '#dfe7ee');
+    for (let i = 0; i < 8; i++) feather(-0.5 + i * 0.155, 165 - Math.abs(i - 3) * 9, 19, '#23272e', '#f1f4f2');
+    for (let i = 0; i < 6; i++) feather(-0.44 + i * 0.19, 92, 17, '#2b3038', '#e9eef0');
+    g.fillStyle = '#35b3e6'; g.beginPath(); g.ellipse(18, 6, 34, 26, 0.3, 0, 7); g.fill();
+    g.restore();
+  }
   function drawHead(p, alpha) {
     const P = POSE[p], o = s.open;
     g.globalAlpha = alpha; g.drawImage(img[P.head], HEAD[0], HEAD[1]);
     if (o > 0.03) {                                            // open mouth: dark gap under the lifted tip, lower mandible beneath it
-      const [tx, ty] = P.tip, drop = 2 + 7 * o;
+      const [tx, ty] = P.tip, drop = 2 + 7 * o;                  // o runs past 1 during a yawn
       g.globalAlpha = alpha * Math.min(1, o * 5);
-      g.fillStyle = '#b7a468'; g.beginPath(); g.ellipse(tx, ty - 10 + drop * 0.5, 10.5, 5 + drop * 0.5, 0, 0, 7); g.fill();
-      g.fillStyle = '#26100f'; g.beginPath(); g.ellipse(tx, ty - 11 + drop * 0.42, 9.3, 4.4 + drop * 0.42, 0, 0, 7); g.fill();
+      g.fillStyle = '#b7a468'; g.beginPath(); g.ellipse(tx, ty - 10 + drop * 0.5, 10.5 + 3 * Math.max(0, o - 1), 5 + drop * 0.5, 0, 0, 7); g.fill();
+      g.fillStyle = '#26100f'; g.beginPath(); g.ellipse(tx, ty - 11 + drop * 0.42, 9.3 + 3 * Math.max(0, o - 1), 4.4 + drop * 0.42, 0, 0, 7); g.fill();
       g.globalAlpha = alpha;
     }
-    g.save(); g.translate(0, BEAK_TOP); g.scale(1, 1 - 0.12 * o); g.translate(0, -BEAK_TOP - 1.5 * o); g.drawImage(img[P.beak], HEAD[0], HEAD[1]); g.restore();
+    g.save(); g.translate(0, BEAK_TOP); g.scale(1, 1 - 0.12 * Math.min(1.3, o)); g.translate(0, -BEAK_TOP - 1.5 * o); g.drawImage(img[P.beak], HEAD[0], HEAD[1]); g.restore();
     if (s.lid > 0.03) for (const [ex, ey, rx, ry] of P.eyes) {   // closed lid: a soft grey patch over the eye and its ring, with a dark crease
       g.save(); g.translate(ex, ey); g.scale(1, ry / rx); g.globalAlpha = alpha * Math.min(1, s.lid * 1.2);
       const R = rx + 4.5, gr = g.createRadialGradient(0, 0, 0, 0, 0, R);
-      gr.addColorStop(0, '#96938d'); gr.addColorStop(0.6, '#8f8c87'); gr.addColorStop(1, 'rgba(143,140,135,0)');
+      gr.addColorStop(0, '#7b7873'); gr.addColorStop(0.6, '#75726d'); gr.addColorStop(1, 'rgba(117,114,109,0)');
       g.fillStyle = gr; g.beginPath(); g.arc(0, 0, R, 0, 7); g.fill();
       g.strokeStyle = 'rgba(38,35,33,.8)'; g.lineWidth = 1.4; g.lineCap = 'round'; g.beginPath(); g.moveTo(-rx * 0.8, -0.5); g.quadraticCurveTo(0, rx * 0.5, rx * 0.8, -0.5); g.stroke();
       g.restore(); g.globalAlpha = alpha;
@@ -114,15 +145,18 @@ const Photo = (() => {
     g.imageSmoothingQuality = 'high';
     g.drawImage(scene, 0, 0, W, H);
     g.translate(0, -40);
+    g.save(); g.translate(220 + s.px, 672 + s.px * SLOPE); g.rotate(Math.atan(SLOPE)); g.fillStyle = 'rgba(30,24,20,.28)'; g.beginPath(); g.ellipse(85, -27, 118, 15, 0, 0, 7); g.fill(); g.restore();
+    g.translate(s.px, s.px * SLOPE + s.hop);
     const breath = Math.sin(s.t * (asleep ? 1.6 : 2.6)) * 0.004, sx = 1 + 0.035 * s.fluff, sy = 1 + breath + 0.012 * s.fluff;
-    const lean = s.hx * 0.0016;
+    const lean = s.hx * 0.0016 + s.lean;
     g.save(); g.translate(FEET[0], FEET[1]); g.rotate(lean); g.scale(sx, sy); g.translate(-FEET[0], -FEET[1]);
+    if (s.wing > 0.02) drawWing(s.wing);
     g.drawImage(img.body, 0, 0);
     g.save(); g.translate(PIV[0], PIV[1]); g.scale(1 / sx, 1 / sy);                                    // the head keeps its own size
     g.translate(s.hx, s.hy + 3 * s.fluff); g.rotate(s.rot * Math.PI / 180); g.scale(1 + 0.012 * s.fluff, 1 + 0.012 * s.fluff); g.translate(-PIV[0], -PIV[1]);
     if (s.fade < 1) { drawHead(s.from, 1); drawHead(s.pose, s.fade); } else drawHead(s.pose, 1);
     g.restore(); g.restore();
-    if (s.dim > 0.01) { g.fillStyle = 'rgba(8,12,34,' + (0.5 * s.dim).toFixed(3) + ')'; g.fillRect(0, 40, W, H); }
+    if (s.dim > 0.01) { g.fillStyle = 'rgba(8,12,34,' + (0.5 * s.dim).toFixed(3) + ')'; g.setTransform(1, 0, 0, 1, 0, 0); g.fillRect(0, 0, cw, ch); }
   }
   function frame(now) {
     raf = 0; if (!visible || !ready) return;
@@ -133,9 +167,9 @@ const Photo = (() => {
     init(canvas, media, opts) { cv = canvas; g = cv.getContext('2d'); getEnv = opts.getEnv; nextShake = performance.now() + 20000; return load(media).then(() => { if (visible) this.setVisible(true); }); },
     get ready() { return ready; },
     setVisible(on) { visible = on; if (on && ready && !raf) { last = 0; raf = requestAnimationFrame(frame); } },
-    setAsleep(a) { asleep = a; if (!a) { nextLook = performance.now() + 500; nextBlink = performance.now() + 900; } },
+    setAsleep(a) { asleep = a; if (!a) { nextIdle = performance.now() + rnd(5, 10) * 1000; nextLook = performance.now() + 500; nextBlink = performance.now() + 900; } },
     notice() { const now = performance.now(); setPose(1, now); tg.rot = rnd(4, 8) * (Math.random() < 0.5 ? -1 : 1); tg.hx = 0; tg.hy = -3; stillUntil = now + 900; nextLook = now + 1200; },
     listenUp(sec) { stillUntil = Math.max(stillUntil, performance.now() + sec * 1000); },
-    startAct(type, now) { if (type === 'bob' || type === 'shake') act = {type, t0: now, dur: type === 'bob' ? 900 : 650}; }
+    startAct(type, now) { begin(type, now); }
   };
 })();

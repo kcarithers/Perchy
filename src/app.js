@@ -311,4 +311,4 @@ $('#soloBtn').onclick = () => { const on = document.body.classList.toggle('solo'
 Bird.init($('#stage'), {getEnv: voiceEnv});
 showBird(st.show); renderTiles(); setStatus();
 setInterval(tick, 1000);
-window.__perchy = {S, Mic, LIB, state: () => ({awake, streak, heard: S.n, answered: S.answered, lastCall: $('#lastCall').textContent, lastReply: $('#lastReply').textContent})};
+window.__perchy = {S, Mic, LIB, Photo, state: () => ({awake, streak, heard: S.n, answered: S.answered, lastCall: $('#lastCall').textContent, lastReply: $('#lastReply').textContent})};
