@@ -209,11 +209,11 @@ const Bird = (() => {
     for (let th = 9 * RAD; th < 152 * RAD; ring++) {
       const l0 = th < 0.5 ? 3.9 : 4.4, n = Math.max(6, Math.round(2 * PI * Math.sin(th) * 17.2 / (l0 * 0.5))), o0 = r() * 6.28;
       for (let i = 0; i < n; i++) {
-        const ps = o0 + (i + (r() - 0.5) * 0.35) * 2 * PI / n, cp = Math.cos(ps), tj = th + (r() - 0.5) * 0.02, deg = tj / RAD;
+        const ps = o0 + (i + (r() - 0.5) * 0.35) * 2 * PI / n, cp = Math.cos(ps), tj = th + (r() - 0.5) * 0.02 + 0.028 * noise(ps * 4.3 + ring * 1.7, ring * 0.37) * sstep(0.9, 1.15, th), deg = tj / RAD;
         const lim = 60 + 10 * Math.pow(Math.max(0, cp), 1.3) + 85 * Math.pow(Math.max(0, -cp), 2) + noise(ps * 7, 3) * 2.5;
         const f = headFrame(tj, ps, 0); if (f.p[1] < -18.5 && f.p[2] < 3) continue;              // buried in the neck
         let mat = 'face', l = l0, w = l0 * 0.86;
-        if (deg > lim) { if (cp < -0.8) { mat = 'face'; l = 6; w = 5; } else { mat = ring % 2 ? 'bar' : 'face'; w = l0; l = l0 * 0.92; } }
+        if (deg > lim) { if (cp < -0.8) { mat = 'face'; l = 6; w = 5; } else { mat = r() < 0.1 ? 'face' : 'bar'; w = l0 * (0.85 + 0.3 * r()); l = l0 * 0.92; } }
         const ap = Math.abs(((ps % (2 * PI)) + 3 * PI) % (2 * PI) - PI) / RAD;                 // 0 = up ... 180 = down
         const cd = Math.hypot((deg - 62) / 9, (ap - 124) * Math.sin(tj) / 13);
         if (cd < 1 && deg < lim + 4) { mat = 'cheek'; l = 5.2; w = 4; }
@@ -436,17 +436,17 @@ const Bird = (() => {
     const out = [], bz = (u, a, b, c) => (1 - u) * (1 - u) * a + 2 * u * (1 - u) * b + u * u * c;
     function grid(bone, col, nu, nv, fn) { const v = []; for (let i = 0; i <= nu; i++) for (let j = 0; j <= nv; j++) v.push(fn(i / nu, j / nv)); out.push({bone, col, nu, nv, v, w: new Float32Array(v.length * 4)}); }
     grid(1, [226, 200, 92], 16, 14, (u, q) => {                 // upper mandible: hooked, wide under the cere, coming to a point
-      const cy = bz(u, -1.4, -3, -15.6), cz = bz(u, 16.2, 26.6, 19), T = norm([0, bz(u + 0.01, -1.4, -3, -15.6) - cy, bz(u + 0.01, 16.2, 26.6, 19) - cz]), N = [0, T[2], -T[1]];
-      const w = 5.9 * Math.pow(1 - u, 0.6) + 0.05, d = 3.5 * Math.pow(1 - u, 0.6) + 0.05, al = (-118 + 236 * q) * RAD, sa = Math.sin(al), ca = Math.cos(al);
+      const cy = bz(u, -2.6, -5.5, -14.8), cz = bz(u, 16.6, 22.6, 18.8), T = norm([0, bz(u + 0.01, -2.6, -5.5, -14.8) - cy, bz(u + 0.01, 16.6, 22.6, 18.8) - cz]), N = [0, T[2], -T[1]];
+      const w = 5.9 * Math.pow(1 - u, 0.62) + 0.05, d = 4.3 * Math.pow(1 - u, 0.55) + 0.05, al = (-118 + 236 * q) * RAD, sa = Math.sin(al), ca = Math.cos(al);
       return [w * sa, cy + N[1] * d * ca, cz + N[2] * d * ca, ...norm([sa / w, N[1] * ca / d + T[1] * 0.3 * u, N[2] * ca / d + T[2] * 0.3 * u])];
     });
-    grid(2, [190, 166, 94], 6, 10, (u, q) => {                   // lower mandible: a small cup tucked under the hook
-      const la = (-88 + 100 * u) * RAD, lo = (-110 + 220 * q) * RAD, d = [Math.sin(lo) * Math.cos(la), Math.sin(la), Math.cos(lo) * Math.cos(la)];
-      return [d[0] * 3.5, -11 + d[1] * 2.6, 14.4 + d[2] * 2.7, ...norm([d[0] / 3.3, d[1] / 2.4, d[2] / 2.7])];
+    grid(2, [204, 178, 96], 8, 12, (u, q) => {                   // lower mandible: a small cup tucked under the hook
+      const la = (-88 + 118 * u) * RAD, lo = (-115 + 230 * q) * RAD, d = [Math.sin(lo) * Math.cos(la), Math.sin(la), Math.cos(lo) * Math.cos(la)];
+      return [d[0] * 4.2, -12 + d[1] * 3.2, 14.6 + d[2] * 3.2, ...norm([d[0] / 4.6, d[1] / 3.6, d[2] / 3.6])];
     });
     for (const sg of [1, -1]) grid(1, null, 9, 12, (u, q) => {    // cere: two soft lobes over the nostrils
       const la = (-70 + 160 * u) * RAD, lo = (-100 + 200 * q) * RAD, d = [Math.sin(lo) * Math.cos(la), Math.sin(la), Math.cos(lo) * Math.cos(la)];
-      return [sg * 3 + d[0] * 3.9, 0.9 + d[1] * 2.7, 16.8 + d[2] * 2.9, ...norm([d[0] / 3.6, d[1] / 2.5, d[2] / 2.6])];
+      return [sg * 3 + d[0] * 3.9, 0.9 + d[1] * 2.7, 17.4 + d[2] * 3, ...norm([d[0] / 3.6, d[1] / 2.5, d[2] / 2.6])];
     });
     return out;
   })();
@@ -472,14 +472,14 @@ const Bird = (() => {
     quads.sort((p, q) => p.z - q.z);
     g.setTransform(1, 0, 0, 1, 0, 0); g.lineJoin = 'round';
     if (ch.jaw.x > 0.05) {                                       // the dark of the open mouth, between the two halves
-      const m = M[1].m, t = M[1].t, j = M[2], p0 = [0, -11.8 * HS, 16.6 * HS], q0 = [0, -12.2 * HS, 16.8 * HS];
+      const m = M[1].m, t = M[1].t, j = M[2], p0 = [0, -11.6 * HS, 17 * HS], q0 = [0, -12 * HS, 17.2 * HS];
       const ax = cx + (t[0] + s * (m[0] * p0[0] + m[1] * p0[1] + m[2] * p0[2])) * sc, ay = cy - (t[1] + s * (m[3] * p0[0] + m[4] * p0[1] + m[5] * p0[2])) * sc, bx = cx + (j.t[0] + s * (j.m[0] * q0[0] + j.m[1] * q0[1] + j.m[2] * q0[2])) * sc, by = cy - (j.t[1] + s * (j.m[3] * q0[0] + j.m[4] * q0[1] + j.m[5] * q0[2])) * sc;
       g.strokeStyle = 'rgba(52,26,28,' + clamp(ch.jaw.x * 2.5, 0, 0.95).toFixed(3) + ')'; g.lineCap = 'round'; g.lineWidth = 3 * HS * ss; g.beginPath(); g.moveTo(ax, ay); g.lineTo(bx, by); g.stroke();
     }
     g.lineWidth = Math.max(0.7, 0.2 * ss);
     for (const q of quads) { const w = q.w; g.fillStyle = g.strokeStyle = q.col; g.beginPath(); g.moveTo(w[q.a * 4], w[q.a * 4 + 1]); g.lineTo(w[q.b * 4], w[q.b * 4 + 1]); g.lineTo(w[q.c * 4], w[q.c * 4 + 1]); g.lineTo(w[q.d * 4], w[q.d * 4 + 1]); g.closePath(); g.fill(); g.stroke(); }
     for (const sg of [1, -1]) {                                  // nostrils
-      const m = M[1].m, t = M[1].t, p = [sg * 3.1 * HS, 1.2 * HS, 19.65 * HS], nz = m[6] * sg * 0.25 + m[7] * 0.1 + m[8] * 0.96; if (nz < 0.25) continue;
+      const m = M[1].m, t = M[1].t, p = [sg * 3.1 * HS, 1.2 * HS, 20.35 * HS], nz = m[6] * sg * 0.25 + m[7] * 0.1 + m[8] * 0.96; if (nz < 0.25) continue;
       const X = cx + (t[0] + s * (m[0] * p[0] + m[1] * p[1] + m[2] * p[2])) * sc, Y = cy - (t[1] + s * (m[3] * p[0] + m[4] * p[1] + m[5] * p[2])) * sc, r = 0.5 * HS * ss;
       const gr = g.createRadialGradient(X, Y, 0, X, Y, r); gr.addColorStop(0, 'rgba(46,28,24,' + (0.75 * nz).toFixed(2) + ')'); gr.addColorStop(1, 'rgba(46,28,24,0)'); g.fillStyle = gr; g.beginPath(); g.arc(X, Y, r, 0, 7); g.fill();
     }
