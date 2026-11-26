@@ -15,45 +15,8 @@ const Photo = (() => {
   let nextLook = 0, nextBlink = 0, blinkEnd = 0, stillUntil = 0, act = null, nextShake = 0, fluffUntil = 0, nextIdle = 0;
   const DUR = {bob: 900, shake: 650, stretch: 2800, yawn: 1600};
 
-  let scene = null, branch = null;
-  function paintScene() {                                    // soft garden light and a branch, drawn once
-    const c = document.createElement('canvas'), k = 2; c.width = W * k; c.height = H * k;
-    let x = c.getContext('2d'); x.scale(k, k);
-    let seed = 7; const r = () => (seed = (seed * 16807) % 2147483647) / 2147483647, rr = (a, b) => a + r() * (b - a);
-    let gr = x.createLinearGradient(0, 0, 0, H); gr.addColorStop(0, '#e4edcf'); gr.addColorStop(0.5, '#bfd4aa'); gr.addColorStop(1, '#8fb08b');
-    x.fillStyle = gr; x.fillRect(0, 0, W, H);
-    gr = x.createRadialGradient(150, 120, 10, 150, 120, 520); gr.addColorStop(0, 'rgba(255,247,210,.85)'); gr.addColorStop(1, 'rgba(255,247,210,0)');
-    x.fillStyle = gr; x.fillRect(0, 0, W, H);
-    const blob = (cx, cy, rad, rgb, a) => { const q = x.createRadialGradient(cx, cy, rad * 0.15, cx, cy, rad); q.addColorStop(0, `rgba(${rgb},${a})`); q.addColorStop(0.7, `rgba(${rgb},${a * 0.75})`); q.addColorStop(1, `rgba(${rgb},0)`); x.fillStyle = q; x.beginPath(); x.arc(cx, cy, rad, 0, 7); x.fill(); };
-    for (let i = 0; i < 9; i++) blob(rr(0, W), rr(0, H), rr(110, 220), ['84,128,86', '70,116,84', '122,160,104'][i % 3], rr(0.25, 0.45));
-    for (let i = 0; i < 30; i++) blob(rr(0, W), rr(0, H * 0.9), rr(16, 58), ['255,255,236', '226,240,170', '170,208,140', '255,238,180'][i % 4], rr(0.14, 0.34));
-    const c2 = document.createElement('canvas'); c2.width = W * k; c2.height = H * k; const bg = x;
-    const yc = px => 672 - UP + 0.233 * (px - 220), top = [], bot = [];
-    for (let px = -40; px <= W + 40; px += 20) { top.push([px, yc(px) - 47 + Math.sin(px * 0.021) * 4 + rr(-1.5, 1.5)]); bot.push([px, yc(px) + 47 + Math.sin(px * 0.017 + 2) * 5 + rr(-1.5, 1.5)]); }
-    x.fillStyle = 'rgba(40,60,40,.22)'; x.beginPath(); top.forEach(([a, b], i) => x[i ? 'lineTo' : 'moveTo'](a, b + 26)); bot.slice().reverse().forEach(([a, b]) => x.lineTo(a, b + 30)); x.fill();
-    const twig = () => {                                      // a leafy twig rising behind the branch
-      x.strokeStyle = '#6f5238'; x.lineWidth = 11; x.lineCap = 'round'; x.beginPath(); x.moveTo(545, 720); x.quadraticCurveTo(585, 600, 560, 470); x.stroke();
-      x.lineWidth = 6; x.beginPath(); x.moveTo(572, 590); x.quadraticCurveTo(615, 560, 640, 505); x.stroke();
-      const leaf = (lx, ly, ang, len) => { x.save(); x.translate(lx, ly); x.rotate(ang); const q = x.createLinearGradient(0, -len * 0.3, 0, len * 0.3); q.addColorStop(0, '#8fbf6a'); q.addColorStop(1, '#4f8a4d'); x.fillStyle = q;
-        x.beginPath(); x.moveTo(0, 0); x.bezierCurveTo(len * 0.3, -len * 0.42, len * 0.8, -len * 0.3, len, 0); x.bezierCurveTo(len * 0.8, len * 0.3, len * 0.3, len * 0.42, 0, 0); x.fill();
-        x.strokeStyle = 'rgba(40,84,44,.55)'; x.lineWidth = 1.6; x.beginPath(); x.moveTo(2, 0); x.lineTo(len * 0.92, 0); x.stroke(); x.restore(); };
-      leaf(560, 474, -1.9, 92); leaf(566, 520, -0.5, 80); leaf(563, 548, -2.7, 74); leaf(640, 506, -1.2, 78); leaf(612, 548, 0.1, 62);
-    };
-    x.save(); x.translate(0, -UP); twig(); x.restore();
-    x = c2.getContext('2d'); x.scale(k, k); branch = c2;                 // the branch is its own layer so the tail can hang behind it
-    x.beginPath(); top.forEach(([a, b], i) => x[i ? 'lineTo' : 'moveTo'](a, b)); bot.slice().reverse().forEach(([a, b]) => x.lineTo(a, b)); x.closePath();
-    x.save(); x.clip();
-    x.translate(220, 672 - UP); x.rotate(Math.atan(0.233));
-    gr = x.createLinearGradient(0, -50, 0, 52); gr.addColorStop(0, '#c9a47a'); gr.addColorStop(0.22, '#a98560'); gr.addColorStop(0.62, '#7f5f42'); gr.addColorStop(1, '#4f3a29');
-    x.fillStyle = gr; x.fillRect(-400, -70, 1000, 140);
-    for (let i = 0; i < 70; i++) { const bx = rr(-320, 520), by = rr(-44, 46), len = rr(30, 120); x.strokeStyle = by < -20 ? `rgba(255,236,200,${rr(0.08, 0.2)})` : `rgba(48,32,20,${rr(0.1, 0.28)})`; x.lineWidth = rr(1, 2.6); x.beginPath(); x.moveTo(bx, by); x.quadraticCurveTo(bx + len / 2, by + rr(-4, 4), bx + len, by + rr(-2, 2)); x.stroke(); }
-    x.fillStyle = 'rgba(52,35,22,.5)'; x.beginPath(); x.ellipse(-150, 8, 20, 11, 0.1, 0, 7); x.fill(); x.fillStyle = 'rgba(120,92,64,.9)'; x.beginPath(); x.ellipse(-150, 8, 12, 6, 0.1, 0, 7); x.fill();
-    for (let i = 0; i < 12; i++) { x.fillStyle = `rgba(196,208,170,${rr(0.25, 0.5)})`; x.beginPath(); x.ellipse(rr(-320, 480), rr(-40, 30), rr(4, 11), rr(3, 7), rr(0, 3), 0, 7); x.fill(); }
-    x.restore();
-    return c;
-  }
   function load(media) {
-    return Promise.all(Object.entries(media).map(([k, src]) => new Promise((ok, no) => { const i = new Image(); i.onload = () => { img[k] = i; ok(); }; i.onerror = no; i.src = src; }))).then(() => { scene = paintScene(); POSE.forEach(buildMesh); ready = true; });
+    return Promise.all(Object.entries(media).map(([k, src]) => new Promise((ok, no) => { const i = new Image(); i.onload = () => { img[k] = i; ok(); }; i.onerror = no; i.src = src; }))).then(() => { POSE.forEach(buildMesh); ready = true; });
   }
   function resize() {
     dpr = Math.min(2, window.devicePixelRatio || 1);
@@ -110,16 +73,8 @@ const Photo = (() => {
       act = {type, t0: now, dur: steps * 270, steps, from: s.px, dist: dir * steps * rnd(15, 21)};
     } else if (DUR[type]) act = {type, t0: now, dur: DUR[type]};
   }
-  function drawWing(e) {                                       // drawn behind the body, hinged at the shoulder
-    g.save(); g.translate(432, 418); g.rotate(1.5 - 0.72 * e); g.scale(0.35 + 0.65 * e, 0.5 + 0.5 * e);
-    const feather = (ang, len, wid, fill, edge) => { g.save(); g.rotate(ang * e);
-      g.beginPath(); g.moveTo(0, 0); g.bezierCurveTo(len * 0.3, -wid, len * 0.85, -wid * 0.9, len, 0); g.bezierCurveTo(len * 0.85, wid * 0.8, len * 0.3, wid, 0, 0);
-      g.fillStyle = fill; g.fill(); g.strokeStyle = edge; g.lineWidth = 2; g.stroke(); g.restore(); };
-    for (let i = 0; i < 9; i++) feather(-0.52 + i * 0.14, 300 - Math.abs(i - 2.5) * 16, 22, i % 2 ? '#48566b' : '#3d4a5e', '#dfe7ee');
-    for (let i = 0; i < 8; i++) feather(-0.5 + i * 0.155, 165 - Math.abs(i - 3) * 9, 19, '#23272e', '#f1f4f2');
-    for (let i = 0; i < 6; i++) feather(-0.44 + i * 0.19, 92, 17, '#2b3038', '#e9eef0');
-    g.fillStyle = '#35b3e6'; g.beginPath(); g.ellipse(18, 6, 34, 26, 0.3, 0, 7); g.fill();
-    g.restore();
+  function drawWing(e) {                                       // painted wing sprite, hinged at the shoulder and tucked behind the body at rest
+    g.save(); g.translate(432, 418); g.rotate(1.5 - 0.72 * e); g.scale(0.35 + 0.65 * e, 0.45 + 0.55 * e); g.drawImage(img.wing, -30, -150); g.restore();
   }
   // The head is a mesh: cells above the chin move rigidly, cells at the neck stay with the body, and the ones
   // between bend, so the head never slides off its shoulders.
@@ -157,12 +112,13 @@ const Photo = (() => {
     for (const c of M.cells) if (c.kind === 1) { tri(im, c.q[0], c.q[1], c.q[2]); tri(im, c.q[0], c.q[2], c.q[3]); }
     g.save(); g.translate(px + tx, py + ty); g.rotate(r); g.scale(sc, sc); g.translate(-px, -py);
     g.save(); rectClip(M.cells, 2); g.drawImage(im, HEAD[0], HEAD[1]); g.restore();
-    if (o > 0.03) {                                            // open beak: the lower mandible drops as a beak-coloured cup, showing the mouth and tongue
-      const [mx, my] = P.tip, d = 2 + 7.5 * Math.min(1.7, o), cup = (hw, top, bot) => { g.beginPath(); g.moveTo(-hw, top); g.bezierCurveTo(-hw, bot * 0.6, -hw * 0.5, bot, 0, bot); g.bezierCurveTo(hw * 0.5, bot, hw, bot * 0.6, hw, top); g.closePath(); };
-      g.save(); g.translate(mx, my - 2); g.globalAlpha = alpha * Math.min(1, o * 6);
-      cup(11.5, -10, d + 3.2); g.fillStyle = '#cfae3c'; g.fill(); g.strokeStyle = '#6f5a1e'; g.lineWidth = 1.1; g.stroke();
-      cup(8.4, -10, d); g.fillStyle = '#5e2622'; g.fill();
-      if (d > 5) { g.fillStyle = '#d58c82'; g.beginPath(); g.ellipse(0, d - 3, 4.2, 2.4, 0, 0, 7); g.fill(); }
+    if (o > 0.03) {                                            // open beak: a soft dark gap under the tip and a muted lower mandible, no outlines
+      const [mx, my] = P.tip, d = 1.5 + 5.2 * Math.min(1.7, o), cup = (hw, top, bot) => { g.beginPath(); g.moveTo(-hw, top); g.bezierCurveTo(-hw, bot * 0.6, -hw * 0.5, bot, 0, bot); g.bezierCurveTo(hw * 0.5, bot, hw, bot * 0.6, hw, top); g.closePath(); };
+      g.save(); g.translate(mx, my - 3); g.globalAlpha = alpha * Math.min(1, o * 6);
+      let gr = g.createLinearGradient(0, -8, 0, d + 3); gr.addColorStop(0, '#8f7a34'); gr.addColorStop(1, '#a8934a');
+      g.shadowColor = 'rgba(70,55,20,.6)'; g.shadowBlur = 2.5 * (cv.width / W); cup(9.6, -9, d + 2.6); g.fillStyle = gr; g.fill();
+      gr = g.createLinearGradient(0, -8, 0, d); gr.addColorStop(0, '#1c0f0d'); gr.addColorStop(1, '#4a2a25');
+      g.shadowColor = 'rgba(28,15,13,.7)'; g.shadowBlur = 1.5 * (cv.width / W); cup(7.2, -9, d); g.fillStyle = gr; g.fill();
       g.restore(); g.globalAlpha = alpha;
     }
     g.save(); g.translate(0, BEAK_TOP); g.scale(1, 1 - 0.1 * Math.min(1.3, o)); g.translate(0, -BEAK_TOP - 2 * o); g.drawImage(img[P.beak], HEAD[0], HEAD[1]); g.restore();
@@ -181,7 +137,7 @@ const Photo = (() => {
       const R = Math.max(rx, ry) + 3.5, gr = g.createRadialGradient(0, 0, 0, 0, 0, R);
       gr.addColorStop(0, '#6f6a65'); gr.addColorStop(0.55, '#6a6560'); gr.addColorStop(1, 'rgba(106,101,96,0)');
       g.save(); g.scale(Math.min(1, (rx + 3.5) / R), 1); g.fillStyle = gr; g.beginPath(); g.arc(0, 0, R, 0, 7); g.fill(); g.restore();
-      g.strokeStyle = '#12100e'; g.lineWidth = 2; g.lineCap = 'round'; g.beginPath(); g.moveTo(-rx - 0.5, -1); g.quadraticCurveTo(0, ry * 0.75, rx + 0.5, -1); g.stroke();
+      g.strokeStyle = 'rgba(40,33,29,.85)'; g.lineWidth = 1.5; g.lineCap = 'round'; g.shadowColor = 'rgba(40,33,29,.6)'; g.shadowBlur = 1.2 * (cv.width / W); g.beginPath(); g.moveTo(-rx - 0.5, -1); g.quadraticCurveTo(0, ry * 0.75, rx + 0.5, -1); g.stroke();
       g.restore(); g.globalAlpha = alpha;
     }
     g.restore(); g.globalAlpha = 1;
@@ -193,31 +149,24 @@ const Photo = (() => {
     g.globalAlpha = alpha; g.drawImage(img[P.body], 0, 0); drawHead(P, alpha);
     g.restore();
   }
-  function drawTail(sway) {                                  // long tail feathers hanging behind the branch
-    g.save(); g.translate(332, 596); g.rotate(sway);
-    const feather = (ang, len, wid, fill) => { g.save(); g.rotate(ang);
-      g.beginPath(); g.moveTo(-wid, 0); g.bezierCurveTo(-wid, len * 0.5, -wid * 0.55, len * 0.9, 0, len); g.bezierCurveTo(wid * 0.55, len * 0.9, wid, len * 0.5, wid, 0); g.closePath();
-      g.fillStyle = fill; g.fill(); g.strokeStyle = '#14263f'; g.lineWidth = 2; g.stroke();
-      g.strokeStyle = 'rgba(190,225,245,.5)'; g.lineWidth = 1.3; g.beginPath(); g.moveTo(0, 12); g.lineTo(0, len - 14); g.stroke(); g.restore(); };
-    feather(0.2, 150, 13, '#3a9fd0'); feather(-0.2, 150, 13, '#3a9fd0'); feather(0.1, 188, 12, '#2877b0'); feather(-0.1, 188, 12, '#2877b0');
-    feather(0.025, 226, 10, '#1d4d86'); feather(-0.025, 228, 10, '#1b4379');
-    g.restore();
+  function drawTail(sway) {                                  // painted tail sprite hanging behind the branch
+    g.save(); g.translate(332, 596); g.rotate(sway); g.drawImage(img.tail, -110, -3); g.restore();
   }
   function draw() {
     const cw = cv.width, ch = cv.height, sc = Math.max(cw / W, ch / H);
     g.setTransform(sc, 0, 0, sc, (cw - W * sc) / 2, (ch - H * sc) * 0.42);
     g.imageSmoothingQuality = 'high';
-    g.drawImage(scene, 0, 0, W, H);
+    g.drawImage(img.bg, 0, 0, W, H);
     const bx = s.px, by = s.px * SLOPE;
     g.save(); g.translate(bx, by + s.hop * 0.5); drawTail(-s.lean * 1.6 + Math.sin(s.t * 0.9) * 0.012 + (s.fade < 1 ? 0 : (s.pose - 1) * 0.05)); g.restore();
-    g.drawImage(branch, 0, 0, W, H);
+    g.drawImage(img.branch, 0, 0, W, H);
     g.save(); g.translate(220 + bx, 672 - UP + by); g.rotate(Math.atan(SLOPE)); g.fillStyle = 'rgba(30,24,20,.28)'; g.beginPath(); g.ellipse(85, -27, 118, 15, 0, 0, 7); g.fill(); g.restore();
     g.translate(bx, by + s.hop - 40 - UP);
     const breath = Math.sin(s.t * (asleep ? 1.6 : 2.6)) * 0.004, sx = 1 + 0.035 * s.fluff, sy = 1 + breath + 0.012 * s.fluff;
     g.save(); g.translate(FEET[0], FEET[1]); g.rotate(s.hx * 0.0016 + s.lean); g.scale(sx, sy); g.translate(-FEET[0], -FEET[1]);
     if (s.fade < 1) { drawBird(s.from, 1); drawBird(s.pose, s.fade); } else drawBird(s.pose, 1);
     g.restore();
-    g.drawImage(img.feet, 0, 0);
+    g.save(); g.shadowColor = 'rgba(30,20,12,.55)'; g.shadowBlur = 7 * (cv.width / W); g.shadowOffsetX = 2 * (cv.width / W); g.shadowOffsetY = 4 * (cv.width / W); g.drawImage(img.feet, 0, 0); g.restore();
     if (s.dim > 0.01) { g.fillStyle = 'rgba(8,12,34,' + (0.5 * s.dim).toFixed(3) + ')'; g.setTransform(1, 0, 0, 1, 0, 0); g.fillRect(0, 0, cw, ch); }
   }
   function frame(now) {
