@@ -146,7 +146,7 @@ const Bird = (() => {
   function headPt(th, ps, off) {                                // the skull's shape: a flattish crown, a forehead sloping to the cere, full cheeks, and a long underside that runs into the neck
     const d = headDir(th, ps), up = Math.max(0, d[1]), dn = Math.max(0, -d[1]);
     const fr = sstep(-0.25, 0.45, d[2]);
-    const rx = 16.6 * (1 + 0.06 * dn - 0.06 * up) + off, ry = (d[1] > 0 ? 16.8 : 21 + 8.5 * fr) + off, rz = (d[2] > 0 ? 17 * (1 - 0.04 * up - 0.06 * dn) : 19.5 * (1 + 0.1 * dn - 0.08 * up)) + off;
+    const rx = 16.6 * (1 + 0.06 * dn - 0.06 * up) + off, ry = (d[1] > 0 ? 16.8 : 21 + 7.2 * fr) + off, rz = (d[2] > 0 ? 17 * (1 - 0.04 * up - 0.24 * dn) : 19.5 * (1 + 0.1 * dn - 0.08 * up)) + off;
     const h = Math.max(1e-4, 1 - d[1] * d[1]), box = Math.pow(h, d[1] > 0 ? -0.16 : -0.3 * fr - 0.05);       // squares the dome's shoulders, and keeps the bib nearly as wide as the face
     return [d[0] * rx * box, d[1] * ry, d[2] * rz * (d[2] > 0 ? box : 1)];
   }
@@ -426,7 +426,7 @@ const Bird = (() => {
     const face = palette.face, skin = shade(mixc(face, [122, 112, 118], 0.5), 0.56);
     let gr = g.createRadialGradient(0, 0, 0.6, 0, 0, 1.55); gr.addColorStop(0, css(skin, 0.8)); gr.addColorStop(0.72, css(skin, 0.5)); gr.addColorStop(1, css(skin, 0));
     g.fillStyle = gr; g.beginPath(); g.arc(0, 0, 1.55, 0, 7); g.fill();
-    gr = g.createRadialGradient(0, 0.05, 0, 0, 0, 1); gr.addColorStop(0, '#050404'); gr.addColorStop(0.4, '#0a0808'); gr.addColorStop(0.54, '#8d867c'); gr.addColorStop(0.66, '#a39c91'); gr.addColorStop(0.76, '#6f675e'); gr.addColorStop(0.86, 'rgba(34,26,24,.9)'); gr.addColorStop(1, 'rgba(34,26,24,0)');
+    gr = g.createRadialGradient(0, 0.05, 0, 0, 0, 1); gr.addColorStop(0, '#050404'); gr.addColorStop(0.4, '#0a0808'); gr.addColorStop(0.54, '#8d867c'); gr.addColorStop(0.66, '#a39c91'); gr.addColorStop(0.8, '#8a8278'); gr.addColorStop(0.9, 'rgba(70,60,56,.5)'); gr.addColorStop(1, 'rgba(70,60,56,0)');
     g.fillStyle = gr; g.beginPath(); g.arc(0, 0, 1, 0, 7); g.fill();
     if (lid > 0.02) {                                            // the lower lid rises, as a bird's does
       const lc = shade(mixc(face, [186, 180, 184], 0.22), 0.58), yTop = 1.45 - 2.9 * lid;
@@ -451,12 +451,12 @@ const Bird = (() => {
     });
     grid(2, [206, 180, 90], 12, 18, (u, q) => {                   // lower mandible: a small cup tucked under the hook
       const la = (-88 + 150 * u) * RAD, lo = (-92 + 184 * q) * RAD, d = [Math.sin(lo) * Math.cos(la), Math.sin(la), Math.cos(lo) * Math.cos(la)];
-      return [d[0] * 2.9, -8.2 + d[1] * 2.5, 14.2 + d[2] * 2.9, ...norm([d[0] / 4.6, d[1] / 3.6, d[2] / 3.6])];
+      return [d[0] * 2.2, -9.5 + d[1] * 1.5, 16.5 + d[2] * 1.8, ...norm([d[0] / 4.6, d[1] / 3.6, d[2] / 3.6])];
     });
     grid(1, null, 14, 28, (u, q) => {                            // cere: one low smooth band across the top of the beak, dipping a little in the middle
       const la = (-75 + 165 * u) * RAD, lo = (-105 + 210 * q) * RAD, d = [Math.sin(lo) * Math.cos(la), Math.sin(la), Math.cos(lo) * Math.cos(la)];
       const x = d[0] * 6.6, dip = 1 - 0.2 * Math.exp(-x * x / 3) * Math.max(0, d[1]);
-      return [x, 1.3 + d[1] * 3.1 * dip, 15.4 + d[2] * 3 * (1 - 0.07 * Math.exp(-x * x / 3)), ...norm([d[0] / 6.6, d[1] / 2.5, d[2] / 2.7])];
+      return [x, 1.2 + d[1] * 3.1 * dip, 15.3 + d[2] * 2.2 * (1 - 0.07 * Math.exp(-x * x / 3)), ...norm([d[0] / 6.6, d[1] / 2.5, d[2] / 2.7])];
     });
     return out;
   })();
