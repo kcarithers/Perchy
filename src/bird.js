@@ -242,6 +242,7 @@ const Bird = (() => {
   sp('jaw', 42, 1); sp('lid', 55, 1, 1); sp('fluff', 3.2, 1, 1); sp('ruffle', 9, 1); sp('throat', 30, 0.9);
   sp('tpitch', 10, 0.42); sp('tyaw', 10, 0.4); sp('tfan', 8, 0.8); sp('wingR', 6.5, 0.85); sp('wingL', 6.5, 0.85); sp('spR', 5.2, 0.88); sp('spL', 5.2, 0.88); sp('dim', 1.4, 1, 1); sp('angle', 5, 1);
   let held = false, T = 0, asleep = true, getEnv = () => 0, lively = 1, branchAngle = 0;
+  const TOUCH_YAW = 85, TOUCH_PITCH = 40;
   const gaze = {yaw: 0, pitch: 0, roll: 0}; let baseYaw = -18, nextLook = 0, looks = 0, stillUntil = 0, sleekUntil = 0, nextBlink = 2, blinkUntil = 0, nextIdle = 4, fluffHold = 0, fluffHoldUntil = 0, act = null, queue = [], sleepSide = 1, breath = 0, lastAct = '';
   const feet = [{u: -8.5, from: 0, to: 0, p: 1, lift: 0}, {u: 8.5, from: 0, to: 0, p: 1, lift: 0}];
   let roam = 34;                                                // how far along the branch the bird may wander
@@ -591,6 +592,8 @@ const Bird = (() => {
     setAsleep(a) { if (a === asleep) return; asleep = a; act = null; queue = []; if (a) sleepSide = rnd() < 0.5 ? -1 : 1; else { look(true); gaze.yaw = rr(-10, 10); nextIdle = T + 1.2; queue.push(['shake']); nextBlink = T + 0.6; } },
     // the real bird called: stop, turn to face it, cock the head, pull the feathers in
     notice() { if (asleep) return; if (act && act.name !== 'bob') act = null; gaze.yaw = rr(-9, 9); gaze.pitch = rr(-7, 2); gaze.roll = (rnd() < 0.5 ? -1 : 1) * rr(9, 22); stillUntil = T + 1.1; sleekUntil = T + 1.8; nextLook = T + 1.2; nextIdle = Math.max(nextIdle, T + 1.6); ch.by.v += 14; },
+    // turn the head toward a touched spot (x, y from -1 to 1 across the picture, measured from the bird's head) and perk up
+    touch(x, y) { if (asleep) return; if (act && act.name !== 'bob') act = null; queue = []; gaze.yaw = clamp(x * TOUCH_YAW, -78, 78); gaze.pitch = clamp(y * TOUCH_PITCH, -24, 30); gaze.roll = (x < 0 ? -1 : 1) * rr(6, 16); stillUntil = T + 1.3; sleekUntil = T + 1.6; nextLook = T + 1.5; nextIdle = Math.max(nextIdle, T + 2); ch.by.v += 18; },
     listenUp(sec) { if (asleep) return; gaze.yaw = (rnd() < 0.5 ? -1 : 1) * rr(30, 70); gaze.pitch = rr(-12, -2); gaze.roll = rr(-18, 18); stillUntil = Math.max(stillUntil, T + Math.min(sec, 2.5)); sleekUntil = T + sec; },
     actNow(type) { if (asleep || !ACTS[type]) return false; queue = []; start(type, type === 'bob' ? 1 : undefined); nextIdle = T + 6; return true; },
     startAct(type, now, energy) { if (!asleep && ACTS[type]) { if (act) queue = [[type, energy]]; else start(type, energy); } },

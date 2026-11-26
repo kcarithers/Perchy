@@ -46,8 +46,11 @@ a{color:inherit}
 .col{display:grid;gap:14px;min-width:0}
 .card{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:16px;display:grid;gap:12px;min-width:0}
 .stage{position:relative;border-radius:var(--r);overflow:hidden;background:#9fc592;border:1px solid var(--line);line-height:0}
-#stage{display:block;width:100%;aspect-ratio:4/5;max-height:72vh}
-.stage .cap{position:absolute;left:10px;bottom:10px;line-height:1.3;font-size:.86rem;font-weight:700;color:#fff;background:rgba(16,28,18,.55);padding:5px 11px;border-radius:999px;backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px)}
+#stage{display:block;width:100%;aspect-ratio:4/5;max-height:72vh;touch-action:manipulation;cursor:pointer}
+.stage{-webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent;-webkit-touch-callout:none}
+body.solo .stage,body.solo #stage,body.solo .solo-btn{touch-action:none}
+.solo-btn{transition:transform .7s linear,background .7s linear}.solo-btn.holding{transform:scale(1.35);background:rgba(190,60,40,.8)}
+.stage .cap{pointer-events:none;position:absolute;left:10px;bottom:10px;line-height:1.3;font-size:.86rem;font-weight:700;color:#fff;background:rgba(16,28,18,.55);padding:5px 11px;border-radius:999px;backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px)}
 .stage .solo-btn{position:absolute;right:10px;top:10px;width:40px;height:40px;border-radius:50%;border:0;background:rgba(16,28,18,.45);color:#fff;font-size:1.1rem;cursor:pointer;line-height:1}
 .stage .hiddenmsg{position:absolute;inset:0;display:grid;place-items:center;line-height:1.4;color:#1b281d;font-weight:700}
 body.solo{overflow:hidden}
