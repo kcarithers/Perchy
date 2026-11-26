@@ -55,21 +55,27 @@ def paint_feather(img, alpha, origin, ang, length, wid, base, edge=None, edge_w=
 
 def layer(w, h, fill): return np.full((h, w, 3), rgb(fill), np.float32), np.zeros((h, w), np.uint8)
 
+def soft(bgr):                     # feathers get no ink line: smooth the paint and blur a touch, like the body's plumage
+    return cv2.GaussianBlur(cv2.edgePreservingFilter(bgr, flags=1, sigma_s=24, sigma_r=0.28), (0, 0), 1.1)
+
 def tail():
-    w, h = 220 * K, 250 * K; img, al = layer(w, h, '#2877b0'); o = np.array([w / 2, 6.0]); d = np.pi / 2
-    for ang, ln, wd, colr in [(0.2, 150, 13, '#3f9fce'), (-0.2, 150, 13, '#3f9fce'), (0.1, 188, 12, '#2c7ab2'), (-0.1, 188, 12, '#2c7ab2'), (0.028, 226, 10.5, '#20528c'), (-0.028, 230, 10.5, '#1d4880')]:
-        paint_feather(img, al, o, d + ang, ln * K, wd * K, rgb(colr), edge=rgb('#17304f'), edge_w=1.6 * K)
-    out = finish(np.clip(img, 0, 255).astype(np.uint8)); save(out, cv2.GaussianBlur(al, (0, 0), 1.2), 'tail.webp')
+    w, h = 220 * K, 250 * K; img, al = layer(w, h, '#2f6f9c'); o = np.array([w / 2, 6.0]); d = np.pi / 2
+    for ang, ln, wd, colr in [(0.17, 150, 17, '#3c8fba'), (-0.17, 150, 17, '#3c8fba'), (0.085, 190, 16, '#2e719f'), (-0.085, 190, 16, '#2e719f'), (0.022, 226, 13, '#255a88'), (-0.022, 230, 13, '#224f7c')]:
+        paint_feather(img, al, o, d + ang, ln * K, wd * K, rgb(colr), edge=rgb('#1f466c'), edge_w=1.2 * K)
+    yy = np.mgrid[0:h, 0:w][0].astype(np.float32) / h; img *= (0.62 + 0.42 * np.clip(yy * 2.2, 0, 1))[:, :, None]      # in the branch's shadow near the top
+    save(soft(np.clip(img, 0, 255).astype(np.uint8)), cv2.GaussianBlur(al, (0, 0), 2.2), 'tail.webp')
 
 def wing():
-    w, h = 360 * K, 330 * K; img, al = layer(w, h, '#3d4a5e'); o = np.array([30.0 * K, 150.0 * K])
-    for i in range(9): paint_feather(img, al, o, -0.52 + i * 0.14, (300 - abs(i - 2.5) * 16) * K, 22 * K, rgb('#5b6c86' if i % 2 else '#52637c'), edge=rgb('#e3eaf0'), edge_w=3.6 * K)
-    for i in range(8): paint_feather(img, al, o, -0.5 + i * 0.155, (165 - abs(i - 3) * 9) * K, 19 * K, rgb('#34383f'), edge=rgb('#f2f5f2'), edge_w=4.4 * K)
-    for i in range(6): paint_feather(img, al, o, -0.44 + i * 0.19, 92 * K, 17 * K, rgb('#383d45'), edge=rgb('#eef2f2'), edge_w=4.6 * K, shaft=False)
-    m = np.zeros((h, w), np.uint8); cv2.ellipse(m, (int(o[0] + 18 * K), int(o[1] + 6 * K)), (36 * K, 27 * K), 17, 0, 360, 255, -1, cv2.LINE_AA)
-    m = cv2.GaussianBlur(m, (0, 0), 3 * K); a = (m / 255.0)[:, :, None]
+    # broad overlapping feathers so the wing reads as one surface; colours follow the bird: grey-blue flights, black coverts scalloped in white
+    w, h = 360 * K, 330 * K; img, al = layer(w, h, '#4a5d78'); o = np.array([30.0 * K, 150.0 * K])
+    for i in range(11): paint_feather(img, al, o, 0.86 - i * 0.135 + rng.uniform(-0.012, 0.012), (292 - abs(i - 7.5) * 15 + rng.uniform(-5, 5)) * K, 33 * K, rgb(['#5f7697', '#566c8c', '#647b9b'][i % 3]), edge=rgb('#c9d6e2'), edge_w=1.5 * K)
+    for i in range(10): paint_feather(img, al, o, 0.86 - i * 0.15 + rng.uniform(-0.02, 0.02), (168 - abs(i - 6) * 8 + rng.uniform(-6, 6)) * K, 27 * K, rgb('#3a3f48'), edge=rgb('#e9eeec'), edge_w=3.2 * K)
+    for i in range(8): paint_feather(img, al, o, 0.82 - i * 0.185 + rng.uniform(-0.03, 0.03), (98 + rng.uniform(-8, 8)) * K, 24 * K, rgb('#33373f'), edge=rgb('#eef1ee'), edge_w=3.6 * K, shaft=False)
+    for i in range(6): paint_feather(img, al, o, 0.74 - i * 0.24 + rng.uniform(-0.04, 0.04), (52 + rng.uniform(-5, 5)) * K, 20 * K, rgb('#2f3239'), edge=rgb('#f0f2ef'), edge_w=3.6 * K, shaft=False)
+    m = np.zeros((h, w), np.uint8); cv2.ellipse(m, (int(o[0] + 10 * K), int(o[1] + 4 * K)), (30 * K, 24 * K), 17, 0, 360, 255, -1, cv2.LINE_AA)
+    m = cv2.GaussianBlur(m, (0, 0), 5 * K); a = (m / 255.0)[:, :, None]
     tex = noise(h, w, 10, 10)[:, :, None]; img[:] = img * (1 - a) + rgb('#39b0e2')[None, None, :] * (0.85 + 0.3 * tex) * a; al = np.maximum(al, m)
-    out = finish(np.clip(img, 0, 255).astype(np.uint8)); save(out, cv2.GaussianBlur(al, (0, 0), 1.2), 'wing.webp')
+    save(soft(np.clip(img, 0, 255).astype(np.uint8)), cv2.GaussianBlur(al, (0, 0), 1.8), 'wing.webp')
 
 # ---------- background, twig, branch ----------
 def scene():

@@ -47,7 +47,7 @@ def feetmask(n,dx,dy,al):
 for name,n,rgb,al,cx,sh in [('bodyA','09',A,aA,570,(0,0)),('bodyB','02',B,aB,593,(-5,3))]:
     fm=feetmask(n,sh[0],sh[1],al)
     if name=='bodyA':
-        fa=cv2.GaussianBlur(np.minimum(fm,al),(0,0),1.2); save(rgb,fa,(CX,CY,CW,CH),'feet.webp')
+        fa=cv2.GaussianBlur(np.minimum(fm,al),(0,0),1.2); frgb=np.clip(rgb.astype(np.float32)*np.array([0.80,0.80,0.86])+np.array([10,6,14]),0,255).astype(np.uint8); save(frgb,fa,(CX,CY,CW,CH),'feet.webp')
     core=((al>128)&(fm==0)).astype(np.uint8)*255
     core=cv2.morphologyEx(core,cv2.MORPH_CLOSE,cv2.getStructuringElement(cv2.MORPH_ELLIPSE,(19,19)))
     core=cv2.morphologyEx(core,cv2.MORPH_OPEN,cv2.getStructuringElement(cv2.MORPH_ELLIPSE,(15,15)))

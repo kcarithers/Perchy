@@ -4,8 +4,8 @@ const Photo = (() => {
   const W = 660, H = 825, HEAD = [225, 176.25], FEET = [335, 800], BEAK_TOP = 309.75, MX = 322.5, UP = 60, G = 14;
   // Poses: 0 = turned to its right, 1 = facing us, 2 = turned to its left (pose 0 mirrored). Feet stay put in all three.
   const POSE = [
-    {head: 'headA', beak: 'beakA', body: 'bodyA', cx: 352.5, tip: [308, 374], eyes: [[375.75, 268.5, 8, 8]]},
-    {head: 'headB', beak: 'beakB', body: 'bodyB', cx: 369.75, tip: [355.5, 374], eyes: [[295, 273, 3.5, 7], [417.5, 264, 6, 8]]}
+    {head: 'headA', beak: 'beakA', body: 'bodyA', cx: 352.5, tip: [308, 374], eyes: [[375.75, 268.5, 8, 8]], lidFrom: [[12, 25]]},
+    {head: 'headB', beak: 'beakB', body: 'bodyB', cx: 369.75, tip: [355.5, 374], eyes: [[295, 273, 3.5, 7], [417.5, 264, 6, 8]], lidFrom: [[15, 13], [3, 27]]}
   ];
   const img = {}, rnd = (a, b) => a + Math.random() * (b - a);
   let cv, g, getEnv = () => 0, ready = false, visible = false, asleep = true, raf = 0, last = 0, dpr = 1;
@@ -93,6 +93,16 @@ const Photo = (() => {
       cells.push({q, kind: lo > 0.999 ? 2 : hi < 0.001 ? 0 : 1});
     }
     P.mesh = {V, cells, piv: [P.cx, 390]};
+    // dark copy of the beak (the mouth's shadow) and, for each eye, a patch of nearby face feathers to close it with
+    const dk = document.createElement('canvas'); dk.width = im.width; dk.height = im.height; let c = dk.getContext('2d');
+    c.drawImage(img[P.beak], 0, 0); c.globalCompositeOperation = 'source-in'; c.fillStyle = '#24130f'; c.fillRect(0, 0, dk.width, dk.height); P.dark = dk;
+    P.lids = P.eyes.map(([ex, ey, rx, ry], i) => {
+      const R = Math.ceil(Math.max(rx, ry) + 7), [ox, oy] = P.lidFrom[i], pc = document.createElement('canvas'); pc.width = pc.height = R * 2; c = pc.getContext('2d');
+      c.drawImage(im, -(ex + ox - HEAD[0] - R), -(ey + oy - HEAD[1] - R));
+      const gr = c.createRadialGradient(R, R, R * 0.45, R, R, R); gr.addColorStop(0, '#000'); gr.addColorStop(1, 'rgba(0,0,0,0)');
+      c.globalCompositeOperation = 'destination-in'; c.fillStyle = gr; c.fillRect(0, 0, R * 2, R * 2);
+      c.drawImage(im, -(ex - HEAD[0] - R), -(ey - HEAD[1] - R)); return {pc, R};      // never spill past the head's own edge
+    });
   }
   function tri(im, A, B, C) {
     const mx = (A.u + B.u + C.u) / 3, my = (A.v + B.v + C.v) / 3, ex = (p, q) => { const dx = p - mx, dy = q - my, d = Math.hypot(dx, dy) || 1; return [p + dx / d * 0.9, q + dy / d * 0.9]; };
@@ -112,16 +122,14 @@ const Photo = (() => {
     for (const c of M.cells) if (c.kind === 1) { tri(im, c.q[0], c.q[1], c.q[2]); tri(im, c.q[0], c.q[2], c.q[3]); }
     g.save(); g.translate(px + tx, py + ty); g.rotate(r); g.scale(sc, sc); g.translate(-px, -py);
     g.save(); rectClip(M.cells, 2); g.drawImage(im, HEAD[0], HEAD[1]); g.restore();
-    if (o > 0.03) {                                            // open beak: a soft dark gap under the tip and a muted lower mandible, no outlines
-      const [mx, my] = P.tip, d = 1.5 + 5.2 * Math.min(1.7, o), cup = (hw, top, bot) => { g.beginPath(); g.moveTo(-hw, top); g.bezierCurveTo(-hw, bot * 0.6, -hw * 0.5, bot, 0, bot); g.bezierCurveTo(hw * 0.5, bot, hw, bot * 0.6, hw, top); g.closePath(); };
-      g.save(); g.translate(mx, my - 3); g.globalAlpha = alpha * Math.min(1, o * 6);
-      let gr = g.createLinearGradient(0, -8, 0, d + 3); gr.addColorStop(0, '#8f7a34'); gr.addColorStop(1, '#a8934a');
-      g.shadowColor = 'rgba(70,55,20,.6)'; g.shadowBlur = 2.5 * (cv.width / W); cup(9.6, -9, d + 2.6); g.fillStyle = gr; g.fill();
-      gr = g.createLinearGradient(0, -8, 0, d); gr.addColorStop(0, '#1c0f0d'); gr.addColorStop(1, '#4a2a25');
-      g.shadowColor = 'rgba(28,15,13,.7)'; g.shadowBlur = 1.5 * (cv.width / W); cup(7.2, -9, d); g.fillStyle = gr; g.fill();
-      g.restore(); g.globalAlpha = alpha;
+    const bk = img[P.beak], [tpx, tpy] = P.tip, d = 1 + 4.6 * Math.min(1.7, o);
+    if (o > 0.03) {                                            // open beak, built from the beak itself: lower mandible drops, a soft shadow opens between
+      g.globalAlpha = alpha * Math.min(1, o * 6);
+      g.save(); g.translate(tpx, tpy + d); g.scale(0.74, 0.44); g.translate(-tpx, -tpy); g.drawImage(bk, HEAD[0], HEAD[1]); g.restore();
+      g.globalAlpha *= 0.92; g.drawImage(P.dark, HEAD[0], HEAD[1] + d * 0.55);
+      g.globalAlpha = alpha;
     }
-    g.save(); g.translate(0, BEAK_TOP); g.scale(1, 1 - 0.1 * Math.min(1.3, o)); g.translate(0, -BEAK_TOP - 2 * o); g.drawImage(img[P.beak], HEAD[0], HEAD[1]); g.restore();
+    g.save(); g.translate(0, BEAK_TOP); g.scale(1, 1 - 0.06 * Math.min(1.3, o)); g.translate(0, -BEAK_TOP - o); g.drawImage(bk, HEAD[0], HEAD[1]); g.restore();
     for (const [ex, ey, rx, ry] of P.eyes) {                   // soft glossy bead: warm dark iris fading into a darker pupil, one small soft glint
       g.save(); g.translate(ex, ey); g.scale(1, ry / rx);
       const R = rx + 1.2, bead = g.createRadialGradient(0, 0.3, 0, 0, 0, R);
@@ -132,14 +140,13 @@ const Photo = (() => {
       g.fillStyle = gl; g.beginPath(); g.arc(-rx * 0.28, -rx * 0.34, Math.max(1.6, rx * 0.34), 0, 7); g.fill();
       g.restore();
     }
-    if (s.lid > 0.05) for (const [ex, ey, rx, ry] of P.eyes) {   // closed eye: the eye blends into the face feathers and a dark curved lash line remains
-      g.save(); g.translate(ex, ey); g.globalAlpha = alpha * Math.min(1, s.lid * 1.3);
-      const R = Math.max(rx, ry) + 3.5, gr = g.createRadialGradient(0, 0, 0, 0, 0, R);
-      gr.addColorStop(0, '#6f6a65'); gr.addColorStop(0.55, '#6a6560'); gr.addColorStop(1, 'rgba(106,101,96,0)');
-      g.save(); g.scale(Math.min(1, (rx + 3.5) / R), 1); g.fillStyle = gr; g.beginPath(); g.arc(0, 0, R, 0, 7); g.fill(); g.restore();
-      g.strokeStyle = 'rgba(40,33,29,.85)'; g.lineWidth = 1.5; g.lineCap = 'round'; g.shadowColor = 'rgba(40,33,29,.6)'; g.shadowBlur = 1.2 * (cv.width / W); g.beginPath(); g.moveTo(-rx - 0.5, -1); g.quadraticCurveTo(0, ry * 0.75, rx + 0.5, -1); g.stroke();
+    if (s.lid > 0.05) P.eyes.forEach(([ex, ey, rx, ry], i) => {   // closed eye: real face feathers drawn over it, then a faint soft lash line
+      const L = P.lids[i]; g.save(); g.globalAlpha = alpha * Math.min(1, s.lid * 1.3);
+      g.drawImage(L.pc, ex - L.R, ey - L.R); g.drawImage(L.pc, ex - L.R, ey - L.R);
+      g.translate(ex, ey); g.strokeStyle = 'rgba(26,21,19,.85)'; g.lineWidth = 1.6; g.lineCap = 'round'; g.shadowColor = 'rgba(30,25,22,.5)'; g.shadowBlur = 1.5 * (cv.width / W);
+      g.beginPath(); g.moveTo(-rx * 0.8, -0.5); g.quadraticCurveTo(0, ry * 0.55, rx * 0.8, -0.5); g.stroke();
       g.restore(); g.globalAlpha = alpha;
-    }
+    });
     g.restore(); g.globalAlpha = 1;
   }
   function drawBird(pose, alpha) {                           // body and head for one pose; pose 2 is pose 0 mirrored
@@ -150,20 +157,23 @@ const Photo = (() => {
     g.restore();
   }
   function drawTail(sway) {                                  // painted tail sprite hanging behind the branch
-    g.save(); g.translate(332, 596); g.rotate(sway); g.drawImage(img.tail, -110, -3); g.restore();
+    g.save(); g.translate(332, 700); g.rotate(sway); g.drawImage(img.tail, -110, -3); g.restore();
   }
   function draw() {
     const cw = cv.width, ch = cv.height, sc = Math.max(cw / W, ch / H);
     g.setTransform(sc, 0, 0, sc, (cw - W * sc) / 2, (ch - H * sc) * 0.42);
     g.imageSmoothingQuality = 'high';
     g.drawImage(img.bg, 0, 0, W, H);
-    const bx = s.px, by = s.px * SLOPE;
-    g.save(); g.translate(bx, by + s.hop * 0.5); drawTail(-s.lean * 1.6 + Math.sin(s.t * 0.9) * 0.012 + (s.fade < 1 ? 0 : (s.pose - 1) * 0.05)); g.restore();
+    const bx = s.px, by = s.px * SLOPE, lean = s.hx * 0.0016 + s.lean, pose = s.fade < 0.5 ? s.from : s.pose;
+    // the tail is part of the bird: it leans, turns and shuffles with the body, but is painted before the branch so it hangs behind it
+    g.save(); g.translate(bx, by + s.hop - 40 - UP); g.translate(FEET[0], FEET[1]); g.rotate(lean); g.translate(-FEET[0], -FEET[1]);
+    if (pose === 2) { g.translate(2 * MX, 0); g.scale(-1, 1); }
+    g.translate(pose === 1 ? 6 : 0, 0); drawTail((pose === 1 ? 0 : 0.07) + Math.sin(s.t * 0.9) * 0.012); g.restore();
     g.drawImage(img.branch, 0, 0, W, H);
     g.save(); g.translate(220 + bx, 672 - UP + by); g.rotate(Math.atan(SLOPE)); g.fillStyle = 'rgba(30,24,20,.28)'; g.beginPath(); g.ellipse(85, -27, 118, 15, 0, 0, 7); g.fill(); g.restore();
     g.translate(bx, by + s.hop - 40 - UP);
     const breath = Math.sin(s.t * (asleep ? 1.6 : 2.6)) * 0.004, sx = 1 + 0.035 * s.fluff, sy = 1 + breath + 0.012 * s.fluff;
-    g.save(); g.translate(FEET[0], FEET[1]); g.rotate(s.hx * 0.0016 + s.lean); g.scale(sx, sy); g.translate(-FEET[0], -FEET[1]);
+    g.save(); g.translate(FEET[0], FEET[1]); g.rotate(lean); g.scale(sx, sy); g.translate(-FEET[0], -FEET[1]);
     if (s.fade < 1) { drawBird(s.from, 1); drawBird(s.pose, s.fade); } else drawBird(s.pose, 1);
     g.restore();
     g.save(); g.shadowColor = 'rgba(30,20,12,.55)'; g.shadowBlur = 7 * (cv.width / W); g.shadowOffsetX = 2 * (cv.width / W); g.shadowOffsetY = 4 * (cv.width / W); g.drawImage(img.feet, 0, 0); g.restore();
