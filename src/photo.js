@@ -1,5 +1,5 @@
-// Photo bird: Kyle's own budgie, cut out of his footage into layers (background, body, two head poses, beak)
-// and moved like a puppet. Same interface as the painted Bird so the app can drive either.
+// Portrait bird: an illustration of Kyle's own budgie. Its layers (body, two head poses, beak) were cut from his
+// footage and given a painted finish; the branch and background are drawn here. It is moved like a puppet. Same interface as the painted Bird so the app can drive either.
 const Photo = (() => {
   const W = 660, H = 825, HEAD = [225, 176.25], PIV = [352.5, 390], FEET = [335, 800], BEAK_TOP = 309.75;
   const POSE = [
@@ -12,8 +12,44 @@ const Photo = (() => {
   const tg = {rot: 4, hx: 0, hy: 5};
   let nextLook = 0, nextBlink = 0, blinkEnd = 0, stillUntil = 0, act = null, nextShake = 0, fluffUntil = 0;
 
+  let scene = null;
+  function paintScene() {                                    // soft garden light and a branch, drawn once
+    const c = document.createElement('canvas'), k = 2; c.width = W * k; c.height = H * k;
+    const x = c.getContext('2d'); x.scale(k, k);
+    let seed = 7; const r = () => (seed = (seed * 16807) % 2147483647) / 2147483647, rr = (a, b) => a + r() * (b - a);
+    let gr = x.createLinearGradient(0, 0, 0, H); gr.addColorStop(0, '#e4edcf'); gr.addColorStop(0.5, '#bfd4aa'); gr.addColorStop(1, '#8fb08b');
+    x.fillStyle = gr; x.fillRect(0, 0, W, H);
+    gr = x.createRadialGradient(150, 120, 10, 150, 120, 520); gr.addColorStop(0, 'rgba(255,247,210,.85)'); gr.addColorStop(1, 'rgba(255,247,210,0)');
+    x.fillStyle = gr; x.fillRect(0, 0, W, H);
+    const blob = (cx, cy, rad, rgb, a) => { const q = x.createRadialGradient(cx, cy, rad * 0.15, cx, cy, rad); q.addColorStop(0, `rgba(${rgb},${a})`); q.addColorStop(0.7, `rgba(${rgb},${a * 0.75})`); q.addColorStop(1, `rgba(${rgb},0)`); x.fillStyle = q; x.beginPath(); x.arc(cx, cy, rad, 0, 7); x.fill(); };
+    for (let i = 0; i < 9; i++) blob(rr(0, W), rr(0, H), rr(110, 220), ['84,128,86', '70,116,84', '122,160,104'][i % 3], rr(0.25, 0.45));
+    for (let i = 0; i < 30; i++) blob(rr(0, W), rr(0, H * 0.9), rr(16, 58), ['255,255,236', '226,240,170', '170,208,140', '255,238,180'][i % 4], rr(0.14, 0.34));
+    const yc = px => 672 + 0.233 * (px - 220), top = [], bot = [];
+    for (let px = -40; px <= W + 40; px += 20) { top.push([px, yc(px) - 47 + Math.sin(px * 0.021) * 4 + rr(-1.5, 1.5)]); bot.push([px, yc(px) + 47 + Math.sin(px * 0.017 + 2) * 5 + rr(-1.5, 1.5)]); }
+    x.fillStyle = 'rgba(40,60,40,.22)'; x.beginPath(); top.forEach(([a, b], i) => x[i ? 'lineTo' : 'moveTo'](a, b + 26)); bot.slice().reverse().forEach(([a, b]) => x.lineTo(a, b + 30)); x.fill();
+    const twig = () => {                                      // a leafy twig rising behind the branch
+      x.strokeStyle = '#6f5238'; x.lineWidth = 11; x.lineCap = 'round'; x.beginPath(); x.moveTo(545, 720); x.quadraticCurveTo(585, 600, 560, 470); x.stroke();
+      x.lineWidth = 6; x.beginPath(); x.moveTo(572, 590); x.quadraticCurveTo(615, 560, 640, 505); x.stroke();
+      const leaf = (lx, ly, ang, len) => { x.save(); x.translate(lx, ly); x.rotate(ang); const q = x.createLinearGradient(0, -len * 0.3, 0, len * 0.3); q.addColorStop(0, '#8fbf6a'); q.addColorStop(1, '#4f8a4d'); x.fillStyle = q;
+        x.beginPath(); x.moveTo(0, 0); x.bezierCurveTo(len * 0.3, -len * 0.42, len * 0.8, -len * 0.3, len, 0); x.bezierCurveTo(len * 0.8, len * 0.3, len * 0.3, len * 0.42, 0, 0); x.fill();
+        x.strokeStyle = 'rgba(40,84,44,.55)'; x.lineWidth = 1.6; x.beginPath(); x.moveTo(2, 0); x.lineTo(len * 0.92, 0); x.stroke(); x.restore(); };
+      leaf(560, 474, -1.9, 92); leaf(566, 520, -0.5, 80); leaf(563, 548, -2.7, 74); leaf(640, 506, -1.2, 78); leaf(612, 548, 0.1, 62);
+    };
+    twig();
+    x.beginPath(); top.forEach(([a, b], i) => x[i ? 'lineTo' : 'moveTo'](a, b)); bot.slice().reverse().forEach(([a, b]) => x.lineTo(a, b)); x.closePath();
+    x.save(); x.clip();
+    x.translate(220, 672); x.rotate(Math.atan(0.233));
+    gr = x.createLinearGradient(0, -50, 0, 52); gr.addColorStop(0, '#c9a47a'); gr.addColorStop(0.22, '#a98560'); gr.addColorStop(0.62, '#7f5f42'); gr.addColorStop(1, '#4f3a29');
+    x.fillStyle = gr; x.fillRect(-400, -70, 1000, 140);
+    for (let i = 0; i < 70; i++) { const bx = rr(-320, 520), by = rr(-44, 46), len = rr(30, 120); x.strokeStyle = by < -20 ? `rgba(255,236,200,${rr(0.08, 0.2)})` : `rgba(48,32,20,${rr(0.1, 0.28)})`; x.lineWidth = rr(1, 2.6); x.beginPath(); x.moveTo(bx, by); x.quadraticCurveTo(bx + len / 2, by + rr(-4, 4), bx + len, by + rr(-2, 2)); x.stroke(); }
+    x.fillStyle = 'rgba(52,35,22,.5)'; x.beginPath(); x.ellipse(-150, 8, 20, 11, 0.1, 0, 7); x.fill(); x.fillStyle = 'rgba(120,92,64,.9)'; x.beginPath(); x.ellipse(-150, 8, 12, 6, 0.1, 0, 7); x.fill();
+    for (let i = 0; i < 12; i++) { x.fillStyle = `rgba(196,208,170,${rr(0.25, 0.5)})`; x.beginPath(); x.ellipse(rr(-320, 480), rr(-40, 30), rr(4, 11), rr(3, 7), rr(0, 3), 0, 7); x.fill(); }
+    x.fillStyle = 'rgba(30,24,20,.3)'; x.beginPath(); x.ellipse(85, -30, 120, 24, 0, 0, 7); x.fill();        // the bird's shadow on the bark
+    x.restore();
+    return c;
+  }
   function load(media) {
-    return Promise.all(Object.entries(media).map(([k, src]) => new Promise((ok, no) => { const i = new Image(); i.onload = () => { img[k] = i; ok(); }; i.onerror = no; i.src = src; }))).then(() => { ready = true; });
+    return Promise.all(Object.entries(media).map(([k, src]) => new Promise((ok, no) => { const i = new Image(); i.onload = () => { img[k] = i; ok(); }; i.onerror = no; i.src = src; }))).then(() => { scene = paintScene(); ready = true; });
   }
   function resize() {
     dpr = Math.min(2, window.devicePixelRatio || 1);
@@ -76,7 +112,8 @@ const Photo = (() => {
     const cw = cv.width, ch = cv.height, sc = Math.max(cw / W, ch / H);
     g.setTransform(sc, 0, 0, sc, (cw - W * sc) / 2, (ch - H * sc) * 0.42);
     g.imageSmoothingQuality = 'high';
-    g.drawImage(img.bg, 0, 0);
+    g.drawImage(scene, 0, 0, W, H);
+    g.translate(0, -40);
     const breath = Math.sin(s.t * (asleep ? 1.6 : 2.6)) * 0.004, sx = 1 + 0.035 * s.fluff, sy = 1 + breath + 0.012 * s.fluff;
     const lean = s.hx * 0.0016;
     g.save(); g.translate(FEET[0], FEET[1]); g.rotate(lean); g.scale(sx, sy); g.translate(-FEET[0], -FEET[1]);
@@ -85,7 +122,7 @@ const Photo = (() => {
     g.translate(s.hx, s.hy + 3 * s.fluff); g.rotate(s.rot * Math.PI / 180); g.scale(1 + 0.012 * s.fluff, 1 + 0.012 * s.fluff); g.translate(-PIV[0], -PIV[1]);
     if (s.fade < 1) { drawHead(s.from, 1); drawHead(s.pose, s.fade); } else drawHead(s.pose, 1);
     g.restore(); g.restore();
-    if (s.dim > 0.01) { g.fillStyle = 'rgba(8,12,34,' + (0.5 * s.dim).toFixed(3) + ')'; g.fillRect(0, 0, W, H); }
+    if (s.dim > 0.01) { g.fillStyle = 'rgba(8,12,34,' + (0.5 * s.dim).toFixed(3) + ')'; g.fillRect(0, 40, W, H); }
   }
   function frame(now) {
     raf = 0; if (!visible || !ready) return;
