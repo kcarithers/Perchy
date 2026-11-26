@@ -56,9 +56,18 @@ a{color:inherit}
 body.solo{overflow:hidden}
 body.solo .stage{position:fixed;inset:0;z-index:40;border-radius:0;border:0;background:#000}
 body.solo #stage{width:100vw;height:100dvh;max-height:none;aspect-ratio:auto}
+body.solo .stage.real #stage{aspect-ratio:auto;max-height:none}
+.stage:fullscreen{border-radius:0;border:0}
+.stage:fullscreen #stage{width:100vw;height:100vh;max-height:none;aspect-ratio:auto}
 body.solo .stage .cap{left:max(12px,env(safe-area-inset-left,0px));bottom:max(12px,env(safe-area-inset-bottom,0px))}
 body.solo .stage .solo-btn{top:max(12px,env(safe-area-inset-top,0px));right:max(12px,env(safe-area-inset-right,0px))}
 .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.picker{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:10px}
+.picker>span{font-weight:700;margin-right:2px}
+.picker button{display:inline-flex;align-items:center;gap:7px;padding:8px 13px 8px 9px;border-radius:999px;border:1.5px solid var(--line);background:transparent;color:inherit;font:inherit;font-weight:700;cursor:pointer;min-height:40px}
+.picker button i{width:18px;height:18px;border-radius:50%;border:1px solid rgba(0,0,0,.25)}
+.picker button[aria-pressed="true"]{border-color:var(--green);box-shadow:0 0 0 2px var(--green) inset}
+.picker[hidden]{display:none}
 .row.between{justify-content:space-between}
 .stack{display:grid;gap:8px}
 button.btn{border:1px solid var(--line);background:var(--surface);color:var(--ink);font:700 .95rem var(--body);padding:10px 14px;border-radius:11px;cursor:pointer;min-height:44px}
@@ -105,6 +114,13 @@ label.field{display:grid;gap:4px;font-size:.88rem;color:var(--muted)}
       <div class="row">
         <button class="btn primary big" id="wakeBtn">Wake Perchy</button>
         <button class="btn" id="callOutBtn">Call to your bird</button>
+        <button class="btn" id="fullBtn">Full screen</button>
+      </div>
+      <div class="picker" id="birdPick" role="group" aria-label="Choose a bird">
+        <span>Bird</span>
+        <button data-bird="blue" aria-pressed="true"><i style="background:#39b0e2"></i>Blue</button>
+        <button data-bird="green" aria-pressed="false"><i style="background:#4fbf4a"></i>Green</button>
+        <button data-bird="yellow" aria-pressed="false"><i style="background:#f3dc55"></i>Yellow</button>
       </div>
       <p class="note" id="micNote" hidden></p>
       <label class="field" for="vol">Volume <input type="range" id="vol" min="0" max="100" step="1"></label>

@@ -300,7 +300,7 @@ const Real = (() => {
   const box = $('#photo').parentElement; let ok = true;
   const on = () => ok && st.real !== false && st.show;
   function sync() {
-    const use = on(); box.classList.toggle('real', use);
+    const use = on(); box.classList.toggle('real', use); $('#birdPick').hidden = !use;
     $('#stage').style.visibility = st.show && !use ? 'visible' : 'hidden'; Bird.setVisible(st.show && !use);
     Photo.setVisible(use); Photo.setAsleep(!awake);
   }
@@ -311,7 +311,21 @@ const showBird = on => { $('#hiddenMsg').hidden = on; Real.sync(); };
 bind('#showBird', 'show', showBird);
 if (st.real === undefined) st.real = true;
 bind('#realBird', 'real', () => Real.sync());
-$('#soloBtn').onclick = () => { const on = document.body.classList.toggle('solo'); $('#soloBtn').textContent = on ? '✕' : '⤢'; $('#soloBtn').setAttribute('aria-label', on ? 'Leave full screen' : 'Show only the bird, full screen'); };
+// Full screen: fill the window with just the bird, and ask the browser for true full screen where it allows it (iPhones do not)
+const stageBox = $('#photo').parentElement;
+function setSolo(on) {
+  document.body.classList.toggle('solo', on); $('#soloBtn').textContent = on ? '✕' : '⤢';
+  $('#soloBtn').setAttribute('aria-label', on ? 'Leave full screen' : 'Show only the bird, full screen'); $('#soloBtn').title = on ? 'Leave full screen' : 'Full screen';
+  try { if (on && stageBox.requestFullscreen && !document.fullscreenElement) stageBox.requestFullscreen().catch(() => {}); else if (!on && document.fullscreenElement) document.exitFullscreen().catch(() => {}); } catch (e) {}
+}
+$('#soloBtn').onclick = () => setSolo(!document.body.classList.contains('solo'));
+$('#fullBtn').onclick = () => setSolo(true);
+document.addEventListener('fullscreenchange', () => { if (!document.fullscreenElement && document.body.classList.contains('solo')) setSolo(false); });
+document.addEventListener('keydown', e => { if (e.key === 'Escape' && document.body.classList.contains('solo')) setSolo(false); });
+// Bird picker
+function pickBird(b) { st.bird = b; Photo.setBird(b); document.querySelectorAll('#birdPick button').forEach(x => x.setAttribute('aria-pressed', String(x.dataset.bird === b))); $('#photo').setAttribute('aria-label', 'Perchy, a ' + b + ' budgie on a branch'); }
+document.querySelectorAll('#birdPick button').forEach(x => { x.onclick = () => { pickBird(x.dataset.bird); save(); }; });
+pickBird(['blue', 'green', 'yellow'].includes(st.bird) ? st.bird : 'blue');
 
 Bird.init($('#stage'), {getEnv: voiceEnv});
 showBird(st.show); renderTiles(); setStatus();

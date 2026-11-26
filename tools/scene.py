@@ -63,7 +63,8 @@ def tail():
     for ang, ln, wd, colr in [(0.17, 150, 17, '#3c8fba'), (-0.17, 150, 17, '#3c8fba'), (0.085, 190, 16, '#2e719f'), (-0.085, 190, 16, '#2e719f'), (0.022, 226, 13, '#255a88'), (-0.022, 230, 13, '#224f7c')]:
         paint_feather(img, al, o, d + ang, ln * K, wd * K, rgb(colr), edge=rgb('#1f466c'), edge_w=1.2 * K)
     yy = np.mgrid[0:h, 0:w][0].astype(np.float32) / h; img *= (0.62 + 0.42 * np.clip(yy * 2.2, 0, 1))[:, :, None]      # in the branch's shadow near the top
-    save(soft(np.clip(img, 0, 255).astype(np.uint8)), cv2.GaussianBlur(al, (0, 0), 2.2), 'tail.webp')
+    out = cv2.resize(np.dstack([soft(np.clip(img, 0, 255).astype(np.uint8)), cv2.GaussianBlur(al, (0, 0), 2.2)]), (w // K, h // K), interpolation=cv2.INTER_AREA)
+    cv2.imwrite(str(OUT / 'tail.png'), out)                        # sprites.py recolours this for each bird
 
 # ---------- background, twig, branch ----------
 def scene():
@@ -78,7 +79,8 @@ def scene():
     for i in range(30): blob(rng.uniform(0, W), rng.uniform(0, H * 0.9), rng.uniform(16, 58), ['#ffffec', '#e2f0aa', '#aad08c', '#ffeeb4'][i % 4], rng.uniform(0.14, 0.34))
     bg += (noise(h, w, 60, 60, 4)[:, :, None] - 0.5) * 16                                   # soft brushy mottling
     yc = lambda px: 672 - UP + 0.233 * (px - 220)
-    v = (Y - yc(X)) / 47.0 + 0.09 * np.sin(X * 0.021) + (noise(h, w, 160, 30) - 0.5) * 0.08   # -1 top edge, +1 bottom edge
+    v = (Y - yc(X)) / 47.0 + 0.09 * np.sin(X * 4 * np.pi / W) + (noise(h, w, 160, 30) - 0.5) * 0.08 * np.sin(np.pi * np.clip(X / W, 0, 1))   # wobble repeats every width so copies join end to end
+    v0 = v   # -1 top edge, +1 bottom edge
     bmask = (np.abs(v) < 1).astype(np.uint8) * 255
     sh = cv2.GaussianBlur(np.roll(bmask, 28 * K, axis=0), (0, 0), 9 * K)[:, :, None] / 255.0 * 0.26
     bg = bg * (1 - sh) + rgb('#283c28') * sh

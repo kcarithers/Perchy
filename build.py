@@ -8,7 +8,7 @@ html = (src / 'template.html').read_text()
 html = html.replace('/*LIB*/', json.dumps(lib, separators=(',', ':')))
 html = html.replace('/*BIRD*/', (src / 'bird.js').read_text()).replace('/*APP*/', (src / 'app.js').read_text())
 def uri(p): return 'data:image/' + ('jpeg' if p.suffix == '.jpg' else 'webp') + ';base64,' + base64.b64encode(p.read_bytes()).decode()
-media = {p.stem: uri(p) for p in sorted((src / 'media').iterdir())}
+media = {str(p.relative_to(src / 'media').with_suffix('')): uri(p) for p in sorted((src / 'media').rglob('*')) if p.suffix in ('.webp', '.jpg')}
 html = html.replace('/*MEDIA*/', json.dumps(media)).replace('/*PHOTO*/', (src / 'photo.js').read_text())
 (src.parent / 'index.html').write_text(html)
 print('index.html', len(html) // 1024, 'KB')
