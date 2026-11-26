@@ -92,7 +92,7 @@ function quietNow() {
 }
 
 // ---------- listening ----------
-const Mic = {stream: null, an: null, timer: null, fd: null, floor: -90, cur: null, on: false, level: -100};
+const Mic = {stream: null, an: null, timer: null, fd: null, floor: null, lowFloor: null, lowHist: [], cur: null, on: false, level: -100, ignored: 0, log: null};
 async function startListening() {
   ensureAudio();
   if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) { micUnavailable(); return false; }
@@ -102,7 +102,7 @@ async function startListening() {
   const src = ctx.createMediaStreamSource(Mic.stream);
   Mic.an = ctx.createAnalyser(); Mic.an.fftSize = 1024; Mic.an.smoothingTimeConstant = 0;
   src.connect(Mic.an); Mic.fd = new Float32Array(Mic.an.frequencyBinCount);
-  Mic.floor = -90; Mic.timer = setInterval(detect, 20); Mic.on = true; $('#micNote').hidden = true;
+  Mic.floor = null; Mic.lowHist = []; Mic.timer = setInterval(detect, 20); Mic.on = true; $('#micNote').hidden = true;
   return true;
 }
 function stopListening() {
@@ -114,37 +114,64 @@ function micUnavailable() {
   const n = $('#micNote'); n.hidden = false;
   n.textContent = "Perchy can't use the microphone here, so it can't hear your bird. Open this page in Safari or Chrome on the phone or tablet by the cage and allow the microphone. Calling out and the distant flock still work, and “Try a pretend call” shows how answering sounds.";
 }
-// A budgie call is a burst of sound between about 2 and 5.5 kHz. Speech, TV and bumps sit mostly lower, so they are ignored.
+// Telling a budgie from everything else. A budgie call is a burst of sound between about 2 and 5.5 kHz whose pitch
+// jumps around quickly. Speech has a voice underneath it (energy below 1.2 kHz) and hissy consonants, a whistle holds
+// a steady or smoothly sliding pitch, and knocks and clicks are over in a moment. Only the first gets an answer.
 function detect() {
   const an = Mic.an; if (!an) return;
   an.getFloatFrequencyData(Mic.fd);
   const binHz = ctx.sampleRate / an.fftSize, fd = Mic.fd;
-  const i0 = Math.floor(300 / binHz), i1 = Math.floor(1900 / binHz), i2 = Math.ceil(5600 / binHz), i3 = Math.min(fd.length - 1, Math.ceil(9000 / binHz));
-  let band = 0, total = 0, cen = 0;
-  for (let i = i0; i <= i3; i++) { const p = Math.pow(10, fd[i] / 10); total += p; if (i >= i1 && i <= i2) { band += p; cen += p * i; } }
-  const bandDb = 10 * Math.log10(band + 1e-12), ratio = band / (total + 1e-12), freq = cen / (band + 1e-12) * binHz;
+  const l0 = Math.floor(150 / binHz), l1 = Math.floor(1200 / binHz), i0 = Math.floor(1000 / binHz), i1 = Math.floor(1900 / binHz), i2 = Math.ceil(5600 / binHz), i3 = Math.min(fd.length - 1, Math.ceil(9000 / binHz));
+  let band = 0, total = 0, cen = 0, low = 0, logSum = 0, pk = i1, pv = -Infinity;
+  for (let i = l0; i < l1; i++) low += Math.pow(10, fd[i] / 10);
+  for (let i = i0; i <= i3; i++) {
+    const db = Math.max(fd[i], -160), p = Math.pow(10, db / 10); total += p;
+    if (i >= i1 && i <= i2) { band += p; cen += p * i; logSum += db; if (db > pv) { pv = db; pk = i; } }
+  }
+  const nb = i2 - i1 + 1, bandDb = 10 * Math.log10(band + 1e-16), lowDb = 10 * Math.log10(low + 1e-16), ratio = band / (total + 1e-16), freq = cen / (band + 1e-16) * binHz;
+  const flat = Math.pow(10, logSum / nb / 10) / (band / nb + 1e-16); // near 0 for a clear tone, about 0.5 for hiss
   const now = performance.now(), suppressed = now < outputUntil + 260;
+  if (bandDb < -125) return; // the microphone hasn't started delivering sound yet
+  if (Mic.floor == null) { Mic.floor = bandDb + 3; Mic.lowFloor = lowDb + 3; }
+  const lowEx = lowDb - Mic.lowFloor; // how far the voice range has risen above the room's usual level
+  Mic.lowFloor += (lowDb - Mic.lowFloor) * (lowDb < Mic.lowFloor ? 0.2 : 0.01);
+  Mic.lowHist.push(suppressed ? 0 : lowEx); if (Mic.lowHist.length > 18) Mic.lowHist.shift();
   const margin = 15 - 9 * (S.set.sens / 100);
-  const active = !suppressed && bandDb > Mic.floor + margin && ratio > 0.5 && bandDb > -78;
-  if (!suppressed && !Mic.cur) Mic.floor += (bandDb - Mic.floor) * (bandDb < Mic.floor ? 0.2 : 0.004);
+  const active = !suppressed && bandDb > Mic.floor + margin && ratio > 0.5 && bandDb > -80;
+  // the room's usual level: follows quickly when nothing is going on, and creeps up under a sound that never stops
+  if (!suppressed) Mic.floor += (bandDb - Mic.floor) * (bandDb < Mic.floor ? 0.2 : (Mic.cur ? 0.004 : 0.02));
   Mic.level += (bandDb - Mic.level) * 0.3;
   $('#levelBar').style.width = clamp((Mic.level + 95) / 65 * 100, 0, 100) + '%';
-  $('#levelTxt').textContent = suppressed ? 'Perchy is calling' : (active || Mic.cur ? 'hearing a call' : 'listening');
+  $('#levelTxt').textContent = suppressed ? 'Perchy is calling' : (active || Mic.cur ? 'hearing something' : 'listening');
   let c = Mic.cur;
   if (active) {
-    if (!c) c = Mic.cur = {start: now, last: now, fsum: 0, n: 0, syl: 1, inGap: false, peak: -120};
+    if (!c) c = Mic.cur = {start: now, last: now, fsum: 0, n: 0, syl: 1, inGap: false, flats: [], pks: [], low: Math.max(...Mic.lowHist)};
     if (c.inGap) { c.syl++; c.inGap = false; }
-    c.last = now; c.n++; c.fsum += freq; c.peak = Math.max(c.peak, bandDb);
-    if (now - c.start > 3500) finishCall();
-  } else if (c) {
+    c.last = now; c.n++; c.fsum += freq; c.flats.push(flat); c.pks.push(pk * binHz);
+  }
+  if (c) {
+    c.low = Math.max(c.low, lowEx);
     const gap = now - c.last;
     if (gap > 50) c.inGap = true;
-    if (gap > 300 || suppressed) finishCall();
+    if (gap > 300 || suppressed || now - c.start > 3500) finishCall();
   }
+}
+const median = a => { const s = [...a].sort((x, y) => x - y); return s.length ? s[Math.floor(s.length / 2)] : 0; };
+function judge(c) {
+  if (c.n < 5) return 'click';                                   // under about 100 ms
+  const f = c.fsum / c.n; if (f < 2200 || f > 4400) return 'a jingle or rattle';   // outside a budgie's range
+  if (c.low >= 15) return 'a voice or a thump';                    // the voice range was active just before or during it
+  if (median(c.flats) >= 0.4) return 'a hiss or speech';           // noise-like, not a call
+  const jumps = []; for (let i = 1; i < c.pks.length; i++) jumps.push(Math.abs(c.pks[i] - c.pks[i - 1]));
+  if (median(jumps) < 200) return 'a whistle or steady tone';      // budgie pitch never sits still this long
+  return null;
 }
 function finishCall() {
   const c = Mic.cur; Mic.cur = null;
-  if (!c || c.n < 3) return; // shorter than about 60 ms is a click, not a call
+  if (!c) return;
+  const why = judge(c);
+  if (Mic.log) Mic.log.push({t: Math.round(c.start), dur: Math.round(c.last - c.start + 20), n: c.n, flat: +median(c.flats).toFixed(3), low: +c.low.toFixed(1), why});
+  if (why) { if (why !== 'click') { Mic.ignored++; $('#lastIgnored').textContent = why.charAt(0).toUpperCase() + why.slice(1) + ' · ' + new Date().toLocaleTimeString([], {hour: 'numeric', minute: '2-digit'}) + ' · ' + Mic.ignored + ' so far'; } return; }
   onCall({pitch: c.fsum / c.n, syl: clamp(c.syl, 1, 9), dur: (c.last - c.start) / 1000 + 0.02}, false);
 }
 
