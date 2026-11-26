@@ -78,7 +78,7 @@ const Photo = (() => {
       begin(['shuffle', 'shuffle', 'stretch', 'yawn'][Math.floor(Math.random() * 4)], now); nextIdle = now + rnd(9, 24) * 1000;
     }
     if (act) {
-      const p = (now - act.t0) / act.dur;
+      const p = Math.max(0, (now - act.t0) / act.dur);
       if (p >= 1) { if (act.type === 'shuffle') s.px = act.from + act.dist; act = null; }
       else if (act.type === 'shuffle') {                       // sidestep along the branch in little hops
         const q = p * act.steps, i = Math.floor(q), f = q - i;
@@ -93,11 +93,11 @@ const Photo = (() => {
     }
     if (speaking) { hy -= 3 * env; rot -= 1.5 * env; }
     s.rot += (rot - s.rot) * k; s.hx += (hx - s.hx) * k; s.hy += (hy - s.hy) * k;
-    s.open += (Math.max(env, yawn * 1.6) - s.open) * (1 - Math.exp(-dt * 30));
+    s.open += ((asleep ? 0 : Math.max(env, yawn * 1.6)) - s.open) * (1 - Math.exp(-dt * 30));
     s.hop = hop; s.lean = lean; s.wing = wing; s.yawn = yawn;
     s.fade = Math.min(1, s.fade + dt / 0.09);
     if (!asleep && now > nextBlink) { blinkEnd = now + 150; nextBlink = now + rnd(2, 6.5) * 1000; }
-    const lidT = asleep ? 1 : (now < blinkEnd ? 1 : 0.75 * yawn);
+    const lidT = asleep || now < blinkEnd || yawn > 0.45 ? 1 : 0;
     s.lid += (lidT - s.lid) * (1 - Math.exp(-dt * (asleep ? 4 : 40)));
     if (!asleep && now > nextShake) { act = {type: 'shake', t0: now, dur: 650}; fluffUntil = now + rnd(4, 9) * 1000; nextShake = now + rnd(35, 90) * 1000; }
     const fl = asleep ? 1 : (now < fluffUntil ? 0.7 : (act && act.type === 'shake' ? 1 : 0));
@@ -157,20 +157,20 @@ const Photo = (() => {
     for (const c of M.cells) if (c.kind === 1) { tri(im, c.q[0], c.q[1], c.q[2]); tri(im, c.q[0], c.q[2], c.q[3]); }
     g.save(); g.translate(px + tx, py + ty); g.rotate(r); g.scale(sc, sc); g.translate(-px, -py);
     g.save(); rectClip(M.cells, 2); g.drawImage(im, HEAD[0], HEAD[1]); g.restore();
-    if (o > 0.03) {                                            // open mouth: dark gap under the lifted tip, lower mandible beneath it
-      const [mx, my] = P.tip, drop = 2 + 7 * o, wide = 3 * Math.max(0, o - 1);     // o runs past 1 during a yawn
+    if (o > 0.03) {                                            // open beak: the lower mandible drops a little, leaving a slim dark gap tucked under the tip
+      const [mx, my] = P.tip, gap = 1.5 + 3.2 * Math.min(1.7, o);
       g.globalAlpha = alpha * Math.min(1, o * 5);
-      g.fillStyle = '#b7a468'; g.beginPath(); g.ellipse(mx, my - 10 + drop * 0.5, 10.5 + wide, 5 + drop * 0.5, 0, 0, 7); g.fill();
-      g.fillStyle = '#26100f'; g.beginPath(); g.ellipse(mx, my - 11 + drop * 0.42, 9.3 + wide, 4.4 + drop * 0.42, 0, 0, 7); g.fill();
+      g.fillStyle = '#26100f'; g.beginPath(); g.ellipse(mx, my - 5, 9, gap, 0, 0, 7); g.fill();
+      g.fillStyle = '#bfa85c'; g.strokeStyle = '#6d5a2a'; g.lineWidth = 1; g.beginPath(); g.ellipse(mx, my - 5 + gap * 0.55, 9.5, 2.2 + gap * 0.5, 0, 0.12, Math.PI - 0.12); g.closePath(); g.fill(); g.stroke();
       g.globalAlpha = alpha;
     }
-    g.save(); g.translate(0, BEAK_TOP); g.scale(1, 1 - 0.12 * Math.min(1.3, o)); g.translate(0, -BEAK_TOP - 1.5 * o); g.drawImage(img[P.beak], HEAD[0], HEAD[1]); g.restore();
-    if (s.lid > 0.03) for (const [ex, ey, rx, ry] of P.eyes) {   // closed lid: a soft grey patch over the eye and its ring, with a dark crease
-      g.save(); g.translate(ex, ey); g.scale(1, ry / rx); g.globalAlpha = alpha * Math.min(1, s.lid * 1.2);
-      const R = rx + 4.5, gr = g.createRadialGradient(0, 0, 0, 0, 0, R);
-      gr.addColorStop(0, '#7b7873'); gr.addColorStop(0.6, '#75726d'); gr.addColorStop(1, 'rgba(117,114,109,0)');
-      g.fillStyle = gr; g.beginPath(); g.arc(0, 0, R, 0, 7); g.fill();
-      g.strokeStyle = 'rgba(38,35,33,.8)'; g.lineWidth = 1.4; g.lineCap = 'round'; g.beginPath(); g.moveTo(-rx * 0.8, -0.5); g.quadraticCurveTo(0, rx * 0.5, rx * 0.8, -0.5); g.stroke();
+    g.save(); g.translate(0, BEAK_TOP); g.scale(1, 1 - 0.1 * Math.min(1.3, o)); g.translate(0, -BEAK_TOP - 1.5 * o); g.drawImage(img[P.beak], HEAD[0], HEAD[1]); g.restore();
+    if (s.lid > 0.05) for (const [ex, ey, rx, ry] of P.eyes) {   // closed eye: the eye blends into the face feathers and a dark curved lash line remains
+      g.save(); g.translate(ex, ey); g.globalAlpha = alpha * Math.min(1, s.lid * 1.3);
+      const R = Math.max(rx, ry) + 3.5, gr = g.createRadialGradient(0, 0, 0, 0, 0, R);
+      gr.addColorStop(0, '#6f6a65'); gr.addColorStop(0.55, '#6a6560'); gr.addColorStop(1, 'rgba(106,101,96,0)');
+      g.save(); g.scale(Math.min(1, (rx + 3.5) / R), 1); g.fillStyle = gr; g.beginPath(); g.arc(0, 0, R, 0, 7); g.fill(); g.restore();
+      g.strokeStyle = '#12100e'; g.lineWidth = 2; g.lineCap = 'round'; g.beginPath(); g.moveTo(-rx - 0.5, -1); g.quadraticCurveTo(0, ry * 0.75, rx + 0.5, -1); g.stroke();
       g.restore(); g.globalAlpha = alpha;
     }
     g.restore(); g.globalAlpha = 1;
@@ -218,7 +218,7 @@ const Photo = (() => {
     init(canvas, media, opts) { cv = canvas; g = cv.getContext('2d'); getEnv = opts.getEnv; nextShake = performance.now() + 20000; return load(media).then(() => { if (visible) this.setVisible(true); }); },
     get ready() { return ready; },
     setVisible(on) { visible = on; if (on && ready && !raf) { last = 0; raf = requestAnimationFrame(frame); } },
-    setAsleep(a) { asleep = a; if (!a) { nextIdle = performance.now() + rnd(5, 10) * 1000; nextLook = performance.now() + 500; nextBlink = performance.now() + 900; } },
+    setAsleep(a) { asleep = a; if (a) { if (act && act.type === 'shuffle') s.px = act.from + act.dist; act = null; } if (!a) { nextIdle = performance.now() + rnd(5, 10) * 1000; nextLook = performance.now() + 500; nextBlink = performance.now() + 900; } },
     notice() { const now = performance.now(); setPose(1, now); tg.rot = rnd(4, 8) * (Math.random() < 0.5 ? -1 : 1); tg.hx = 0; tg.hy = -3; stillUntil = now + 900; nextLook = now + 1200; },
     listenUp(sec) { stillUntil = Math.max(stillUntil, performance.now() + sec * 1000); },
     startAct(type, now) { begin(type, now); },
