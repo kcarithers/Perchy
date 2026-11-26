@@ -31,13 +31,27 @@ for name,rgb,al,cx,beak in [('headA',A,aA,570,(463,893,562,996)),('headB',B,aB,5
     n,lab,st,_=cv2.connectedComponentsWithStats(m); k=1+np.argmax(st[1:,4]); m=(lab==k).astype(np.uint8)*255
     m=cv2.GaussianBlur(m,(5,5),0); ys,xs=np.where(m>128); print(name,'beak bbox',xs.min(),ys.min(),xs.max(),ys.max())
     save(rgb,m,(HX,HY,HW,HH),name.replace('head','beak')+'.webp')
-# body: head area filled from the chest, alpha trimmed to a neck stub
-c=curve(570); headzone=((yy<c+40)&(aA>0)).astype(np.uint8)*255
-fill=cv2.inpaint(A,cv2.dilate(headzone,np.ones((7,7),np.uint8)),9,cv2.INPAINT_TELEA)
-fill=cv2.GaussianBlur(fill,(0,0),6)
-w=np.clip((c+40-yy)/30,0,1)[:,:,None]; body=(A*(1-w)+fill*w).astype(np.uint8)
-er=cv2.erode(np.minimum(aA,aB),np.ones((47,47),np.uint8)); er=cv2.GaussianBlur(er,(0,0),5)
-k=np.clip((c-yy-20)/40,0,1)   # 0 below the neck line, 1 well above it
-ba=aA*(1-k)+er*k*np.clip(1-(c-yy-70)/50,0,1)
-save(body,ba.astype(np.uint8),(CX,CY,CW,CH),'body.webp')
-print('feet rows', [ (int(np.where(aA[y]>128)[0].min()), int(np.where(aA[y]>128)[0].max())) for y in (1440,1480,1520,1560)])
+# feet (from pose A) are their own layer so the body can be mirrored for the turn to the other side
+def feetmask(n,dx,dy,al):
+    raw=cv2.imread(f'f_{n}.png'); M=np.float32([[1,0,dx],[0,1,dy]]); raw=cv2.warpAffine(raw,M,(raw.shape[1],raw.shape[0]))
+    hsv=cv2.cvtColor(raw,cv2.COLOR_BGR2HSV); H,Sa,V=hsv[:,:,0],hsv[:,:,1],hsv[:,:,2]
+    pale=(Sa<105)&(V>105); band=(H>=104)&(H<=125)&(Sa>120)
+    m=np.zeros(al.shape,np.uint8)
+    for (x0,y0,x1,y1),useband in [((340,1332,440,1535),False),((560,1372,685,1598),True)]:
+        sel=pale[y0:y1,x0:x1]|((band[y0:y1,x0:x1]) if useband else False)
+        if useband: sel[70:,:]&=pale[y0+70:y1,x0:x1]
+        sub=(sel&(al[y0:y1,x0:x1]>20)).astype(np.uint8)*255
+        sub=cv2.morphologyEx(sub,cv2.MORPH_CLOSE,np.ones((9,9),np.uint8)); sub=cv2.morphologyEx(sub,cv2.MORPH_OPEN,np.ones((5,5),np.uint8))
+        k,lab,st,_=cv2.connectedComponentsWithStats(sub); big=1+np.argmax(st[1:,4]); m[y0:y1,x0:x1]=(lab==big).astype(np.uint8)*255
+    return cv2.dilate(m,np.ones((7,7),np.uint8))
+for name,n,rgb,al,cx,sh in [('bodyA','09',A,aA,570,(0,0)),('bodyB','02',B,aB,593,(-5,3))]:
+    fm=feetmask(n,sh[0],sh[1],al)
+    if name=='bodyA':
+        fa=cv2.GaussianBlur(np.minimum(fm,al),(0,0),1.2); save(rgb,fa,(CX,CY,CW,CH),'feet.webp')
+    core=((al>128)&(fm==0)).astype(np.uint8)*255
+    core=cv2.morphologyEx(core,cv2.MORPH_CLOSE,cv2.getStructuringElement(cv2.MORPH_ELLIPSE,(19,19)))
+    core=cv2.morphologyEx(core,cv2.MORPH_OPEN,cv2.getStructuringElement(cv2.MORPH_ELLIPSE,(15,15)))
+    balpha=np.where(fm>0,np.minimum(al,cv2.GaussianBlur(core,(0,0),1.5)),al)
+    brgb=cv2.inpaint(rgb,cv2.dilate(fm,np.ones((5,5),np.uint8)),7,cv2.INPAINT_TELEA)
+    c=curve(cx); gfade=np.clip((yy-(c-60))/33,0,1); gfade=gfade*gfade*(3-2*gfade)   # the head mesh covers everything above the neck
+    save(brgb,(balpha*gfade).astype(np.uint8),(CX,CY,CW,CH),name+'.webp')
