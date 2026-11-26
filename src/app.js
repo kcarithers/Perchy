@@ -9,7 +9,7 @@ let toastT;
 function toast(msg) { const t = $('#toast'); t.textContent = msg; t.classList.add('show'); clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove('show'), 3200); }
 
 // ---------- saved state (this device only) ----------
-const DEFAULTS = {set: {vol: 50, answer: true, callOut: true, flock: true, quiet: false, show: true, sens: 55}, n: 0, pitch: 3100, answered: 0, fav: {}, day: {key: '', count: 0}};
+const DEFAULTS = {set: {vol: 50, answer: true, callOut: true, flock: true, quiet: false, show: true, real: true, sens: 55}, n: 0, pitch: 3100, answered: 0, fav: {}, day: {key: '', count: 0}};
 let S = JSON.parse(JSON.stringify(DEFAULTS));
 try { const raw = JSON.parse(localStorage.getItem('perchy.v3') || 'null'); if (raw) { Object.assign(S, raw); S.set = Object.assign({}, DEFAULTS.set, raw.set || {}); } } catch (e) {}
 let saveT;
@@ -264,11 +264,11 @@ function renderTiles() {
 }
 async function wake() {
   if (awake) {
-    awake = false; stopListening(); Bird.setAsleep(true); setCap('Dozing');
+    awake = false; stopListening(); Bird.setAsleep(true); Real.sync(); setCap('Dozing');
     if (wakeLock) { try { wakeLock.release(); } catch (e) {} wakeLock = null; }
     $('#wakeBtn').textContent = 'Wake Perchy'; setStatus(); return;
   }
-  ensureAudio(); awake = true; Bird.setAsleep(false);
+  ensureAudio(); awake = true; Bird.setAsleep(false); Real.sync();
   $('#wakeBtn').textContent = 'Put Perchy to sleep'; setCap('Waking up'); setStatus();
   await loadSounds();
   if (!awake) return;
@@ -290,8 +290,32 @@ const bind = (id, key, after) => { $(id).checked = st[key]; $(id).onchange = e =
 bind('#answerBack', 'answer'); bind('#callOut', 'callOut', on => { if (on) scheduleCallOut(); });
 bind('#bgFlock', 'flock', on => { if (on) nextFlock = Date.now() + 8000; });
 bind('#quietOn', 'quiet', on => { setStatus(); toast(on ? 'Perchy will stay quiet from 8:30 PM to 7 AM' : 'Perchy will make sounds at any hour'); });
-const showBird = on => { $('#stage').style.visibility = on ? 'visible' : 'hidden'; $('#hiddenMsg').hidden = on; Bird.setVisible(on); };
+// Real footage of the bird: a short steadied loop that plays forward then backward. It rests for a
+// random moment at each turnaround so the repeat is harder to spot, and falls back to the painted bird if it cannot play.
+const Real = (() => {
+  const v = $('#vid'), box = v.parentElement; let ok = true, holdUntil = 0, lastHalf = 0, raf = 0;
+  const on = () => ok && st.real !== false && st.show;
+  function frame() {
+    raf = 0; if (!on() || !awake) return;
+    const now = performance.now(), half = v.duration ? (v.currentTime < v.duration / 2 ? 0 : 1) : 0;
+    if (half !== lastHalf) { lastHalf = half; if (Math.random() < 0.7) { v.pause(); holdUntil = now + rand(0.6, 4) * 1000; } }
+    if (v.paused && now >= holdUntil) { v.playbackRate = rand(0.75, 1); v.play().catch(() => {}); }
+    v.style.transform = 'scale(' + (1 + Math.min(1, voiceEnv()) * 0.012).toFixed(4) + ')';
+    raf = requestAnimationFrame(frame);
+  }
+  function sync() {
+    const use = on(); box.classList.toggle('real', use); box.classList.toggle('dozing', use && !awake);
+    $('#stage').style.visibility = st.show && !use ? 'visible' : 'hidden'; Bird.setVisible(st.show && !use);
+    v.style.visibility = st.show ? 'visible' : 'hidden';
+    if (use && awake) { holdUntil = 0; if (!raf) raf = requestAnimationFrame(frame); } else v.pause();
+  }
+  v.addEventListener('error', () => { ok = false; sync(); });
+  return {sync};
+})();
+const showBird = on => { $('#hiddenMsg').hidden = on; Real.sync(); };
 bind('#showBird', 'show', showBird);
+if (st.real === undefined) st.real = true;
+bind('#realBird', 'real', () => Real.sync());
 $('#soloBtn').onclick = () => { const on = document.body.classList.toggle('solo'); $('#soloBtn').textContent = on ? '✕' : '⤢'; $('#soloBtn').setAttribute('aria-label', on ? 'Leave full screen' : 'Show only the bird, full screen'); };
 
 Bird.init($('#stage'), {getEnv: voiceEnv});
