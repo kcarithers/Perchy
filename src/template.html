@@ -46,17 +46,13 @@ a{color:inherit}
 .col{display:grid;gap:14px;min-width:0}
 .card{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:16px;display:grid;gap:12px;min-width:0}
 .stage{position:relative;border-radius:var(--r);overflow:hidden;background:#9fc592;border:1px solid var(--line);line-height:0}
-#stage{display:block;width:100%;aspect-ratio:1/1;max-height:66vh}
-.stage #photo{position:absolute;inset:0;width:100%;height:100%;display:none}
-.stage.real #photo{display:block}
-.stage.real #stage{aspect-ratio:4/5;max-height:72vh}
+#stage{display:block;width:100%;aspect-ratio:4/5;max-height:72vh}
 .stage .cap{position:absolute;left:10px;bottom:10px;line-height:1.3;font-size:.86rem;font-weight:700;color:#fff;background:rgba(16,28,18,.55);padding:5px 11px;border-radius:999px;backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px)}
 .stage .solo-btn{position:absolute;right:10px;top:10px;width:40px;height:40px;border-radius:50%;border:0;background:rgba(16,28,18,.45);color:#fff;font-size:1.1rem;cursor:pointer;line-height:1}
 .stage .hiddenmsg{position:absolute;inset:0;display:grid;place-items:center;line-height:1.4;color:#1b281d;font-weight:700}
 body.solo{overflow:hidden}
 body.solo .stage{position:fixed;inset:0;z-index:40;border-radius:0;border:0;background:#000}
 body.solo #stage{width:100vw;height:100dvh;max-height:none;aspect-ratio:auto}
-body.solo .stage.real #stage{aspect-ratio:auto;max-height:none}
 .stage:fullscreen{border-radius:0;border:0}
 .stage:fullscreen #stage{width:100vw;height:100vh;max-height:none;aspect-ratio:auto}
 body.solo .stage .cap{left:max(12px,env(safe-area-inset-left,0px));bottom:max(12px,env(safe-area-inset-bottom,0px))}
@@ -68,6 +64,12 @@ body.solo .stage .solo-btn{top:max(12px,env(safe-area-inset-top,0px));right:max(
 .picker button i{width:18px;height:18px;border-radius:50%;border:1px solid rgba(0,0,0,.25)}
 .picker button[aria-pressed="true"]{border-color:var(--green);box-shadow:0 0 0 2px var(--green) inset}
 .picker[hidden]{display:none}
+.design{display:grid;gap:12px}
+.swatches{display:grid;grid-template-columns:repeat(auto-fill,minmax(96px,1fr));gap:10px}
+.swatches label{display:grid;gap:4px;font-size:.86rem;color:var(--muted)}
+.swatches input[type=color]{width:100%;height:42px;padding:2px;border:1.5px solid var(--line);border-radius:10px;background:var(--surface);cursor:pointer}
+.sliders{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px 16px}
+input[type=text]{font:inherit;color:inherit;background:var(--surface);border:1.5px solid var(--line);border-radius:11px;padding:9px 12px;min-height:44px;min-width:0;flex:1 1 140px}
 .row.between{justify-content:space-between}
 .stack{display:grid;gap:8px}
 button.btn{border:1px solid var(--line);background:var(--surface);color:var(--ink);font:700 .95rem var(--body);padding:10px 14px;border-radius:11px;cursor:pointer;min-height:44px}
@@ -75,6 +77,7 @@ button.btn:hover{border-color:var(--muted)}
 button.btn.primary{background:var(--green);border-color:var(--green);color:var(--green-ink)}
 button.btn.big{font-size:1.08rem;padding:13px 22px;border-radius:13px;flex:1 1 200px}
 button.btn.ghost{background:transparent}
+#actBtns .btn{padding:8px 12px;min-height:40px;font-size:.9rem}
 :focus-visible{outline:3px solid var(--cere);outline-offset:2px}
 input[type=range]{accent-color:var(--green);width:100%}
 label.field{display:grid;gap:4px;font-size:.88rem;color:var(--muted)}
@@ -106,7 +109,6 @@ label.field{display:grid;gap:4px;font-size:.88rem;color:var(--muted)}
     <div class="col">
       <div class="stage">
         <canvas id="stage" aria-label="Perchy, a budgie on a branch"></canvas>
-        <canvas id="photo" aria-label="Perchy, a blue budgie on a branch"></canvas>
         <div class="hiddenmsg" id="hiddenMsg" hidden>Perchy is hidden. The sounds still work.</div>
         <span class="cap" id="cap">Dozing</span>
         <button class="solo-btn" id="soloBtn" aria-label="Show only the bird, full screen" title="Full screen">⤢</button>
@@ -116,11 +118,35 @@ label.field{display:grid;gap:4px;font-size:.88rem;color:var(--muted)}
         <button class="btn" id="callOutBtn">Call to your bird</button>
         <button class="btn" id="fullBtn">Full screen</button>
       </div>
-      <div class="picker" id="birdPick" role="group" aria-label="Choose a bird">
-        <span>Bird</span>
-        <button data-bird="blue" aria-pressed="true"><i style="background:#39b0e2"></i>Blue</button>
-        <button data-bird="green" aria-pressed="false"><i style="background:#4fbf4a"></i>Green</button>
-        <button data-bird="yellow" aria-pressed="false"><i style="background:#f3dc55"></i>Yellow</button>
+      <div class="card design">
+        <div class="row between"><h2>Choose your Perchy</h2><button class="btn" id="custBtn" aria-expanded="false" aria-controls="custom">Customize</button></div>
+        <div class="picker" id="birdPick" role="group" aria-label="Choose a bird" style="margin-top:0"></div>
+        <div class="design" id="custom" hidden>
+          <div class="swatches">
+            <label>Body<input type="color" data-k="body"></label>
+            <label>Face<input type="color" data-k="face"></label>
+            <label>Markings<input type="color" data-k="marks"></label>
+            <label>Cheek patch<input type="color" data-k="cheek"></label>
+            <label>Cere (above beak)<input type="color" data-k="cere"></label>
+          </div>
+          <div class="sliders">
+            <label class="field">Markings: faint to bold<input type="range" data-k="markAmt" min="0" max="1" step="0.02"></label>
+            <label class="field">Size<input type="range" data-k="size" min="0.8" max="1.2" step="0.01"></label>
+            <label class="field">Build: slim to plump<input type="range" data-k="build" min="0" max="1" step="0.02"></label>
+            <label class="field">Fluffiness<input type="range" data-k="fluff" min="0" max="1" step="0.02"></label>
+            <label class="field">Tail length<input type="range" data-k="tailLen" min="0.6" max="1.4" step="0.02"></label>
+          </div>
+          <div class="row"><input type="text" id="birdName" maxlength="18" placeholder="Name this bird" aria-label="Name this bird"><button class="btn" id="saveBird">Save as a new bird</button><button class="btn ghost" id="delBird" hidden>Delete</button></div>
+        </div>
+        <div class="sliders">
+          <label class="field" for="lively">Liveliness: calm to busy<input type="range" id="lively" min="0.5" max="1.8" step="0.05"></label>
+          <label class="field" for="angle">Branch angle<input type="range" id="angle" min="-25" max="25" step="1"></label>
+        </div>
+      </div>
+      <div class="card design">
+        <h2>Try each movement</h2>
+        <p class="small muted">Tap one to see Perchy do it now. Perchy also does all of these unprompted.</p>
+        <div class="row" id="actBtns"></div>
       </div>
       <p class="note" id="micNote" hidden></p>
       <label class="field" for="vol">Volume <input type="range" id="vol" min="0" max="100" step="1"></label>
@@ -149,7 +175,6 @@ label.field{display:grid;gap:4px;font-size:.88rem;color:var(--muted)}
         <label class="switch" for="bgFlock"><input type="checkbox" id="bgFlock"><span><b>Flock in the distance</b><span>A few seconds of a real wild flock chattering, every few minutes.</span></span></label>
         <label class="switch" for="quietOn"><input type="checkbox" id="quietOn"><span><b>Stay quiet overnight</b><span>No sounds from 8:30 PM to 7 AM.</span></span></label>
         <label class="switch" for="showBird"><input type="checkbox" id="showBird"><span><b>Show Perchy on screen</b><span>Turn off if your bird fixates on the screen or seems wary of it.</span></span></label>
-        <label class="switch" for="realBird"><input type="checkbox" id="realBird"><span><b>Look like my bird</b><span>Perchy is drawn from your own budgie. Turn off for the simpler painted one.</span></span></label>
         <label class="field" for="sens">Listening sensitivity <input type="range" id="sens" min="0" max="100"></label>
       </div>
 
@@ -172,9 +197,7 @@ window.PERCHY_SOUNDS = /*LIB*/;
 <script>
 (() => {
 'use strict';
-window.PERCHY_MEDIA = /*MEDIA*/;
 /*BIRD*/
-/*PHOTO*/
 /*APP*/
 })();
 </script>

@@ -6,7 +6,7 @@ Open the GitHub Pages link on a phone or tablet by the cage, tap **Wake Perchy**
 
 ## Editing
 
-`index.html` is built from the files in `src/` (page template, bird drawing and animation, app logic, and the sounds). After changing anything there, run `python3 build.py`.
+`index.html` is built from the files in `src/` (page template, the bird, app logic, and the sounds). The bird in `src/bird.js` uses no pictures: it is a small 3D model of a few thousand painted feathers generated from a short list of settings (colours, markings, size, build, fluffiness, tail length), posed by springs so every movement is continuous. After changing anything there, run `python3 build.py`.
 
 ## Sound credits
 
