@@ -304,10 +304,49 @@ function setSolo(on) {
   $('#soloBtn').setAttribute('aria-label', on ? 'Leave full screen' : 'Show only the bird, full screen'); $('#soloBtn').title = on ? 'Leave full screen' : 'Full screen';
   try { if (on && stageBox.requestFullscreen && !document.fullscreenElement) stageBox.requestFullscreen().catch(() => {}); else if (!on && document.fullscreenElement) document.exitFullscreen().catch(() => {}); } catch (e) {}
 }
-$('#soloBtn').onclick = () => setSolo(!document.body.classList.contains('solo'));
+// In full screen the close button needs a held press, so a peck cannot close it
+let holdT = 0, capBack = '';
+$('#soloBtn').onclick = () => { if (!document.body.classList.contains('solo')) setSolo(true); };
+$('#soloBtn').addEventListener('pointerdown', e => {
+  if (!document.body.classList.contains('solo')) return;
+  e.preventDefault(); clearTimeout(holdT); $('#soloBtn').classList.add('holding');
+  holdT = setTimeout(() => { holdT = 0; $('#soloBtn').classList.remove('holding'); setSolo(false); }, 700);
+});
+for (const ev of ['pointerup', 'pointerleave', 'pointercancel']) $('#soloBtn').addEventListener(ev, () => {
+  if (!holdT) return; clearTimeout(holdT); holdT = 0; $('#soloBtn').classList.remove('holding');
+  if (document.body.classList.contains('solo')) { const c = $('#cap'); if (c.textContent !== 'Hold ✕ to leave') capBack = c.textContent; c.textContent = 'Hold ✕ to leave'; setTimeout(() => { if (c.textContent === 'Hold ✕ to leave') c.textContent = capBack; }, 1800); }
+});
+$('#soloBtn').addEventListener('keydown', e => { if ((e.key === 'Enter' || e.key === ' ') && document.body.classList.contains('solo')) { e.preventDefault(); setSolo(false); } });
 $('#fullBtn').onclick = () => setSolo(true);
 document.addEventListener('fullscreenchange', () => { if (!document.fullscreenElement && document.body.classList.contains('solo')) setSolo(false); });
 document.addEventListener('keydown', e => { if (e.key === 'Escape' && document.body.classList.contains('solo')) setSolo(false); });
+// ---------- touch to call ----------
+// A touch anywhere on the picture (a finger, or your bird's beak) makes Perchy look at the spot and call.
+// One call at a time: quick repeated pecks do not stack calls. In the page a touch counts when it lifts without sliding, so scrolling still works; in full screen it counts the moment it lands.
+let touchBusy = 0, touchDown = null;
+async function touched(e) {
+  const r = $('#stage').getBoundingClientRect(), x = (e.clientX - r.left) / r.width, y = (e.clientY - r.top) / r.height;
+  if (!awake) { if (Date.now() > touchBusy) { touchBusy = Date.now() + 1500; wake(); } return; }
+  Bird.touch((x - 0.5) * 2, (y - 0.36) * 2);
+  if (Date.now() < touchBusy) return;
+  touchBusy = Date.now() + 1200; await loadSounds(); if (!awake || !bufs.size) return;
+  const clip = choose(Math.random() < 0.75 ? 'chirp' : 'phrase', S.pitch); if (!clip) return;
+  const d = say(clip, {level: 0.95, rate: rand(0.98, 1.02)});
+  pending = {id: clip.id, t: Date.now() + d * 1000}; touchBusy = Date.now() + Math.max(900, d * 1000 + 350);
+  nextCallOut = Math.max(nextCallOut, Date.now() + 25000);
+  $('#lastReply').textContent = 'Touched · ' + kHz(clip.pitch) + ' · ' + d.toFixed(2) + ' s';
+}
+const onStage = e => e.target === $('#stage');
+stageBox.addEventListener('pointerdown', e => {
+  if (!onStage(e) || e.button > 0) return;
+  if (document.body.classList.contains('solo')) { e.preventDefault(); touched(e); touchDown = null; } else touchDown = {id: e.pointerId, x: e.clientX, y: e.clientY, t: Date.now()};
+});
+stageBox.addEventListener('pointerup', e => {
+  const d = touchDown; touchDown = null;
+  if (d && d.id === e.pointerId && onStage(e) && Date.now() - d.t < 700 && Math.hypot(e.clientX - d.x, e.clientY - d.y) < 14) touched(e);
+});
+stageBox.addEventListener('pointercancel', () => { touchDown = null; });
+stageBox.addEventListener('contextmenu', e => e.preventDefault());
 // ---------- choosing and designing the bird ----------
 // A bird is a short list of settings (colours, markings, size, build...). Presets are built in; your own are kept on this device.
 if (!Array.isArray(st.birds)) st.birds = [];
