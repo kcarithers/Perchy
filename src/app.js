@@ -9,7 +9,7 @@ let toastT;
 function toast(msg) { const t = $('#toast'); t.textContent = msg; t.classList.add('show'); clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove('show'), 3200); }
 
 // ---------- saved state (this device only) ----------
-const DEFAULTS = {set: {vol: 50, answer: true, callOut: true, flock: true, quiet: false, show: true, real: true, sens: 55}, n: 0, pitch: 3100, answered: 0, fav: {}, day: {key: '', count: 0}};
+const DEFAULTS = {set: {vol: 50, answer: true, callOut: true, flock: true, quiet: false, show: true, sens: 55, bird: 'sky', angle: 8, lively: 1, birds: []}, n: 0, pitch: 3100, answered: 0, fav: {}, day: {key: '', count: 0}};
 let S = JSON.parse(JSON.stringify(DEFAULTS));
 try { const raw = JSON.parse(localStorage.getItem('perchy.v3') || 'null'); if (raw) { Object.assign(S, raw); S.set = Object.assign({}, DEFAULTS.set, raw.set || {}); } } catch (e) {}
 let saveT;
@@ -182,7 +182,7 @@ function describe(f) { return kHz(f.pitch) + ' · ' + f.syl + (f.syl === 1 ? ' n
 function setCap(t) { $('#cap').textContent = t; }
 function onCall(f, pretend) {
   const now = Date.now();
-  Bird.notice(); Photo.notice(); setCap('Heard your bird');
+  Bird.notice(); setCap('Heard your bird');
   $('#lastCall').textContent = describe(f) + (pretend ? ' (pretend)' : '');
   if (!pretend) {
     S.n++; S.pitch += (f.pitch - S.pitch) * (S.n < 8 ? 0.3 : 0.08);
@@ -195,7 +195,7 @@ function onCall(f, pretend) {
   // an excited bird bobs: loud, long or rapid-fire calls make Perchy bob its head, harder the more worked up things are
   recentCalls = recentCalls.filter(t => now - t < 8000); recentCalls.push(now);
   const excite = (f.loud > 26 ? 1 : 0) + (f.dur > 0.7 ? 1 : 0) + (recentCalls.length >= 3 ? 1 : 0) + (streak >= 2 ? 1 : 0);
-  if (awake && excite && Math.random() < 0.3 + 0.22 * excite) setTimeout(() => Photo.startAct('bob', performance.now(), 0.35 + 0.28 * excite), rand(900, 1500));
+  if (awake && excite && Math.random() < 0.3 + 0.22 * excite) setTimeout(() => Bird.startAct('bob', performance.now(), 0.35 + 0.28 * excite), rand(900, 1500));
   pending = null; lastHeardAt = now; scheduleCallOut();
   if (quietNow()) $('#lastReply').textContent = 'Quiet hours, not answering';
   else if (S.set.answer && (awake || pretend) && now - lastReplyAt > 1600 && now > lastSoundEnd + 300) {
@@ -233,7 +233,7 @@ function playFlock() {
   const ids = [...bedBufs.keys()]; if (!ids.length) return;
   const buf = bedBufs.get(pick(ids)), src = ctx.createBufferSource(); src.buffer = buf; src.playbackRate.value = rand(0.98, 1.02);
   const g = ctx.createGain(); g.gain.value = rand(0.7, 1); src.connect(g); g.connect(far); src.start();
-  markOutput(buf.duration * 1000 + 150); Bird.listenUp(buf.duration); Photo.listenUp(buf.duration);
+  markOutput(buf.duration * 1000 + 150); Bird.listenUp(buf.duration);
   setCap('A flock passing'); setTimeout(() => { if (awake) setCap(quietNow() ? 'Quiet hours' : 'Listening'); }, buf.duration * 1000);
 }
 // Once a second: the gentle things Perchy does unprompted.
@@ -254,7 +254,7 @@ async function pretendCall() {
 
 // ---------- screen ----------
 function setStatus() {
-  const p = $('#statusPill');
+  const p = $('#statusPill'); if (!p) return;
   if (!awake) { p.className = 'pill'; p.textContent = 'Asleep'; return; }
   if (quietNow()) { p.className = 'pill quiet'; p.textContent = 'Quiet hours'; return; }
   p.className = 'pill on'; p.textContent = Mic.on ? 'Listening' : 'Awake, mic off';
@@ -269,11 +269,11 @@ function renderTiles() {
 }
 async function wake() {
   if (awake) {
-    awake = false; stopListening(); Bird.setAsleep(true); Real.sync(); setCap('Dozing');
+    awake = false; stopListening(); Bird.setAsleep(true); setCap('Dozing');
     if (wakeLock) { try { wakeLock.release(); } catch (e) {} wakeLock = null; }
     $('#wakeBtn').textContent = 'Wake Perchy'; setStatus(); return;
   }
-  ensureAudio(); awake = true; Bird.setAsleep(false); Real.sync();
+  ensureAudio(); awake = true; Bird.setAsleep(false);
   $('#wakeBtn').textContent = 'Put Perchy to sleep'; setCap('Waking up'); setStatus();
   await loadSounds();
   if (!awake) return;
@@ -295,24 +295,10 @@ const bind = (id, key, after) => { $(id).checked = st[key]; $(id).onchange = e =
 bind('#answerBack', 'answer'); bind('#callOut', 'callOut', on => { if (on) scheduleCallOut(); });
 bind('#bgFlock', 'flock', on => { if (on) nextFlock = Date.now() + 8000; });
 bind('#quietOn', 'quiet', on => { setStatus(); toast(on ? 'Perchy will stay quiet from 8:30 PM to 7 AM' : 'Perchy will make sounds at any hour'); });
-// Photo bird (made from Kyle's own budgie) is the default; the painted bird is the fallback and the alternative.
-const Real = (() => {
-  const box = $('#photo').parentElement; let ok = true;
-  const on = () => ok && st.real !== false && st.show;
-  function sync() {
-    const use = on(); box.classList.toggle('real', use); $('#birdPick').hidden = !use;
-    $('#stage').style.visibility = st.show && !use ? 'visible' : 'hidden'; Bird.setVisible(st.show && !use);
-    Photo.setVisible(use); Photo.setAsleep(!awake);
-  }
-  Photo.init($('#photo'), window.PERCHY_MEDIA, {getEnv: voiceEnv}).catch(() => { ok = false; sync(); });
-  return {sync};
-})();
-const showBird = on => { $('#hiddenMsg').hidden = on; Real.sync(); };
+const showBird = on => { $('#hiddenMsg').hidden = on; $('#stage').style.visibility = on ? 'visible' : 'hidden'; Bird.setVisible(on); };
 bind('#showBird', 'show', showBird);
-if (st.real === undefined) st.real = true;
-bind('#realBird', 'real', () => Real.sync());
 // Full screen: fill the window with just the bird, and ask the browser for true full screen where it allows it (iPhones do not)
-const stageBox = $('#photo').parentElement;
+const stageBox = $('#stage').parentElement;
 function setSolo(on) {
   document.body.classList.toggle('solo', on); $('#soloBtn').textContent = on ? '✕' : '⤢';
   $('#soloBtn').setAttribute('aria-label', on ? 'Leave full screen' : 'Show only the bird, full screen'); $('#soloBtn').title = on ? 'Leave full screen' : 'Full screen';
@@ -322,12 +308,42 @@ $('#soloBtn').onclick = () => setSolo(!document.body.classList.contains('solo'))
 $('#fullBtn').onclick = () => setSolo(true);
 document.addEventListener('fullscreenchange', () => { if (!document.fullscreenElement && document.body.classList.contains('solo')) setSolo(false); });
 document.addEventListener('keydown', e => { if (e.key === 'Escape' && document.body.classList.contains('solo')) setSolo(false); });
-// Bird picker
-function pickBird(b) { st.bird = b; Photo.setBird(b); document.querySelectorAll('#birdPick button').forEach(x => x.setAttribute('aria-pressed', String(x.dataset.bird === b))); $('#photo').setAttribute('aria-label', 'Perchy, a ' + b + ' budgie on a branch'); }
-document.querySelectorAll('#birdPick button').forEach(x => { x.onclick = () => { pickBird(x.dataset.bird); save(); }; });
-pickBird(['blue', 'green', 'yellow'].includes(st.bird) ? st.bird : 'blue');
+// ---------- choosing and designing the bird ----------
+// A bird is a short list of settings (colours, markings, size, build...). Presets are built in; your own are kept on this device.
+if (!Array.isArray(st.birds)) st.birds = [];
+if ({blue: 1, green: 1, yellow: 1}[st.bird]) st.bird = st.bird === 'blue' ? 'sky' : st.bird;   // names used by the earlier version
+const allBirds = () => [...Bird.PRESETS, ...st.birds];
+const SPEC_KEYS = ['body', 'face', 'marks', 'cheek', 'cere', 'markAmt', 'size', 'build', 'fluff', 'tailLen'];
+function fillControls(sp) { document.querySelectorAll('#custom [data-k]').forEach(el => { el.value = sp[el.dataset.k]; }); }
+function renderBirds() {
+  const box = $('#birdPick'); box.innerHTML = '';
+  for (const b of allBirds()) {
+    const x = document.createElement('button'), i = document.createElement('i'); i.style.background = 'linear-gradient(135deg,' + b.face + ' 0 38%,' + b.body + ' 38%)';
+    x.append(i, b.name); x.setAttribute('aria-pressed', String(b.id === st.bird && !st.edited)); x.onclick = () => chooseBird(b.id); box.append(x);
+  }
+  const mine = st.birds.some(b => b.id === st.bird); $('#delBird').hidden = !mine;
+}
+function chooseBird(id) {
+  const b = allBirds().find(x => x.id === id) || Bird.PRESETS[0];
+  st.bird = b.id; st.spec = Object.assign({}, b); st.edited = false; Bird.setSpec(st.spec); fillControls(Bird.getSpec()); $('#birdName').value = st.birds.includes(b) ? b.name : '';
+  $('#stage').setAttribute('aria-label', 'Perchy, a ' + b.name.toLowerCase() + ' budgie on a branch'); renderBirds(); save();
+}
+let specT;
+document.querySelectorAll('#custom [data-k]').forEach(el => { el.oninput = () => {
+  const k = el.dataset.k; st.spec = Object.assign({}, Bird.getSpec(), {[k]: el.type === 'range' ? +el.value : el.value}); if (k === 'body' || k === 'face') st.spec.tail = '';
+  st.edited = true; clearTimeout(specT); specT = setTimeout(() => { Bird.setSpec(st.spec); renderBirds(); save(); }, 40);
+}; });
+$('#custBtn').onclick = () => { const open = $('#custom').hidden; $('#custom').hidden = !open; $('#custBtn').setAttribute('aria-expanded', String(open)); $('#custBtn').textContent = open ? 'Done' : 'Customize'; };
+$('#saveBird').onclick = () => {
+  const name = $('#birdName').value.trim() || 'My bird ' + (st.birds.length + 1), b = Object.assign({}, Bird.getSpec(), {name, id: 'my' + Date.now().toString(36)});
+  st.birds.push(b); if (st.birds.length > 12) st.birds.shift(); chooseBird(b.id); toast(name + ' saved');
+};
+$('#delBird').onclick = () => { st.birds = st.birds.filter(b => b.id !== st.bird); chooseBird('sky'); };
+$('#lively').value = st.lively; $('#lively').oninput = e => { st.lively = +e.target.value; Bird.setLively(st.lively); save(); };
+$('#angle').value = st.angle; $('#angle').oninput = e => { st.angle = +e.target.value; Bird.setAngle(st.angle); save(); };
 
-Bird.init($('#stage'), {getEnv: voiceEnv});
+Bird.init($('#stage'), {getEnv: voiceEnv, spec: st.spec || allBirds().find(b => b.id === st.bird) || Bird.PRESETS[0], angle: st.angle, lively: st.lively});
+fillControls(Bird.getSpec()); renderBirds();
 showBird(st.show); renderTiles(); setStatus();
 setInterval(tick, 1000);
-window.__perchy = {S, Mic, LIB, Photo, state: () => ({awake, streak, heard: S.n, answered: S.answered, lastCall: $('#lastCall').textContent, lastReply: $('#lastReply').textContent})};
+window.__perchy = {S, Mic, LIB, Bird, state: () => ({awake, streak, heard: S.n, answered: S.answered, lastCall: $('#lastCall').textContent, lastReply: $('#lastReply').textContent})};
