@@ -467,7 +467,7 @@ const Bird = (() => {
     grid(1, null, 14, 28, (u, q) => {                            // cere: one low smooth band across the top of the beak, dipping a little in the middle
       const la = (-75 + 165 * u) * RAD, lo = (-105 + 210 * q) * RAD, d = [Math.sin(lo) * Math.cos(la), Math.sin(la), Math.cos(lo) * Math.cos(la)];
       const x = d[0] * 6.6, dip = 1 - 0.2 * Math.exp(-x * x / 3) * Math.max(0, d[1]);
-      return [x, 1.2 + d[1] * 3.1 * dip, 15.3 + d[2] * 2.2 * (1 - 0.07 * Math.exp(-x * x / 3)), ...norm([d[0] / 6.6, d[1] / 2.5, d[2] / 2.7])];
+      return [x, 1.9 + d[1] * 4 * dip, 15.3 + d[2] * 2.2 * (1 - 0.07 * Math.exp(-x * x / 3)), ...norm([d[0] / 6.6, d[1] / 2.5, d[2] / 2.7])];
     });
     return out;
   })();
@@ -500,7 +500,7 @@ const Bird = (() => {
     g.lineWidth = Math.max(0.5, 0.1 * ss);
     for (const q of quads) { const w = q.w; g.fillStyle = g.strokeStyle = q.col; g.beginPath(); g.moveTo(w[q.a * 4], w[q.a * 4 + 1]); g.lineTo(w[q.b * 4], w[q.b * 4 + 1]); g.lineTo(w[q.c * 4], w[q.c * 4 + 1]); g.lineTo(w[q.d * 4], w[q.d * 4 + 1]); g.closePath(); g.fill(); g.stroke(); }
     for (const sg of [1, -1]) {                                  // nostrils
-      const m = M[1].m, t = M[1].t, p = [sg * 2.7 * HS, 1.2 * HS, 18.3 * HS], nz = m[6] * sg * 0.25 + m[7] * 0.1 + m[8] * 0.96; if (nz < 0.25) continue;
+      const m = M[1].m, t = M[1].t, p = [sg * 2.7 * HS, 2.1 * HS, 17.7 * HS], nz = m[6] * sg * 0.25 + m[7] * 0.1 + m[8] * 0.96; if (nz < 0.25) continue;
       const X = cx + (t[0] + s * (m[0] * p[0] + m[1] * p[1] + m[2] * p[2])) * sc, Y = cy - (t[1] + s * (m[3] * p[0] + m[4] * p[1] + m[5] * p[2])) * sc, r = 0.42 * HS * ss;
       const gr = g.createRadialGradient(X, Y, 0, X, Y, r); gr.addColorStop(0, 'rgba(46,28,24,' + (0.75 * nz).toFixed(2) + ')'); gr.addColorStop(1, 'rgba(46,28,24,0)'); g.fillStyle = gr; g.beginPath(); g.arc(X, Y, r, 0, 7); g.fill();
     }
@@ -529,7 +529,16 @@ const Bird = (() => {
     c.fillStyle = gr; c.fillRect(0, 0, L, Hh); c.restore();
     branchC = {c: c0, L, H: Hh};
   }
+  let bgCol = '';
   function paintBg() {
+    if (bgCol) {                                                // a chosen colour: the same soft out-of-focus look, in that colour
+      const b = hex(bgCol), c0 = document.createElement('canvas'); c0.width = 120; c0.height = 120; const c = c0.getContext('2d'), r = rng(5), k = v => v.map(Math.round).join(',');
+      let gr = c.createLinearGradient(0, 0, 80, 120); gr.addColorStop(0, 'rgb(' + k(mixc(b, [255, 255, 255], 0.3)) + ')'); gr.addColorStop(0.5, 'rgb(' + k(b) + ')'); gr.addColorStop(1, 'rgb(' + k(mixc(b, [20, 26, 40], 0.3)) + ')'); c.fillStyle = gr; c.fillRect(0, 0, 120, 120);
+      const cols = [mixc(b, [255, 255, 255], 0.35), mixc(b, [20, 26, 40], 0.18), mixc(b, [20, 26, 40], 0.34), mixc(b, [255, 250, 220], 0.45), b, mixc(b, [255, 255, 255], 0.18)].map(k);
+      for (let i = 0; i < 46; i++) { const x = r() * 120, y = r() * 120, a = 8 + r() * 26; gr = c.createRadialGradient(x, y, 0, x, y, a); const col = cols[Math.floor(r() * cols.length)]; gr.addColorStop(0, 'rgba(' + col + ',' + (0.2 + r() * 0.3) + ')'); gr.addColorStop(0.6, 'rgba(' + col + ',.12)'); gr.addColorStop(1, 'rgba(' + col + ',0)'); c.fillStyle = gr; c.fillRect(0, 0, 120, 120); }
+      gr = c.createRadialGradient(34, 26, 0, 34, 26, 70); gr.addColorStop(0, 'rgba(255,250,224,.3)'); gr.addColorStop(1, 'rgba(255,250,224,0)'); c.fillStyle = gr; c.fillRect(0, 0, 120, 120);
+      bgC = c0; return;
+    }
     const c0 = document.createElement('canvas'); c0.width = 120; c0.height = 120; const c = c0.getContext('2d'), r = rng(5);
     let gr = c.createLinearGradient(0, 0, 80, 120); gr.addColorStop(0, '#c4dcb2'); gr.addColorStop(0.5, '#93bd95'); gr.addColorStop(1, '#5e8f7c'); c.fillStyle = gr; c.fillRect(0, 0, 120, 120);
     const cols = ['210,232,170', '120,172,120', '70,128,104', '238,236,180', '96,150,132', '160,204,150'];
@@ -589,7 +598,7 @@ const Bird = (() => {
   function resize() {
     const dpr = Math.min(2, window.devicePixelRatio || 1) * quality, w = Math.round(cv.clientWidth * dpr), h = Math.round(cv.clientHeight * dpr);
     if (w && h && (cv.width !== w || cv.height !== h)) { cv.width = w; cv.height = h; }
-    cw = cv.width; ch_ = cv.height; sc = Math.min(cw / 150, ch_ / 262); cx = cw / 2; cy = ch_ * 0.75;
+    cw = cv.width; ch_ = cv.height; sc = Math.min(cw / 118, ch_ / 192); cx = cw / 2; cy = ch_ * 0.82;
     roam = clamp(cw / sc / 2 - 44, 4, 60);
   }
   function frame(now) {
@@ -609,7 +618,7 @@ const Bird = (() => {
     PRESETS, DEFAULT,
     init(canvas, opts) { cv = canvas; g = cv.getContext('2d'); getEnv = opts.getEnv; paintBg(); paintBranch(); setSpec(opts.spec || spec); branchAngle = opts.angle || 0; ch.angle.x = ch.angle.t = branchAngle; lively = opts.lively || 1; ch.hyaw.x = 124; ch.hpitch.x = 16; ch.hy.x = -5; },
     setSpec, getSpec: () => Object.assign({}, spec),
-    setAngle(a) { branchAngle = clamp(+a || 0, -30, 30); }, setLively(l) { lively = clamp(+l || 1, 0.4, 2); },
+    setBg(c) { bgCol = /^#[0-9a-f]{6}$/i.test(c || '') ? c : ''; paintBg(); }, setAngle(a) { branchAngle = clamp(+a || 0, -30, 30); }, setLively(l) { lively = clamp(+l || 1, 0.4, 2); },
     setVisible(on) { visible = on; if (on && !raf && !manual) { last = 0; raf = requestAnimationFrame(frame); } },
     setAsleep(a) { if (a === asleep) return; asleep = a; act = null; queue = []; if (a) sleepSide = rnd() < 0.5 ? -1 : 1; else { look(true); gaze.yaw = rr(-10, 10); nextIdle = T + 1.2; queue.push(['shake']); nextBlink = T + 0.6; } },
     // the real bird called: stop, turn to face it, cock the head, pull the feathers in
