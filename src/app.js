@@ -9,7 +9,7 @@ let toastT;
 function toast(msg) { const t = $('#toast'); t.textContent = msg; t.classList.add('show'); clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove('show'), 3200); }
 
 // ---------- saved state (this device only) ----------
-const DEFAULTS = {set: {vol: 50, answer: true, callOut: true, flock: true, quiet: false, show: true, sens: 55, bird: 'sky', angle: 8, lively: 1, birds: []}, n: 0, pitch: 3100, answered: 0, fav: {}, day: {key: '', count: 0}};
+const DEFAULTS = {set: {vol: 50, answer: true, callOut: true, flock: true, quiet: false, show: true, sens: 55, bird: 'sky', angle: 8, lively: 1, bg: '', birds: []}, n: 0, pitch: 3100, answered: 0, fav: {}, day: {key: '', count: 0}};
 let S = JSON.parse(JSON.stringify(DEFAULTS));
 try { const raw = JSON.parse(localStorage.getItem('perchy.v3') || 'null'); if (raw) { Object.assign(S, raw); S.set = Object.assign({}, DEFAULTS.set, raw.set || {}); } } catch (e) {}
 let saveT;
@@ -364,12 +364,14 @@ function renderBirds() {
 }
 function chooseBird(id) {
   const b = allBirds().find(x => x.id === id) || Bird.PRESETS[0];
-  st.bird = b.id; st.spec = Object.assign({}, b); st.edited = false; Bird.setSpec(st.spec); fillControls(Bird.getSpec()); $('#birdName').value = st.birds.includes(b) ? b.name : '';
+  const cur = st.spec || Bird.getSpec(), keep = {};
+  if (!st.birds.includes(b) && cur) for (const k of ['size', 'build', 'fluff', 'tailLen']) if (cur[k] !== undefined) keep[k] = cur[k];   // a built-in colour changes colours only; size and shape stay as you set them
+  st.bird = b.id; st.spec = Object.assign({}, b, keep); st.edited = false; Bird.setSpec(st.spec); fillControls(Bird.getSpec()); $('#birdName').value = st.birds.includes(b) ? b.name : '';
   $('#stage').setAttribute('aria-label', 'Perchy, a ' + b.name.toLowerCase() + ' budgie on a branch'); renderBirds(); save();
 }
 let specT;
 document.querySelectorAll('#custom [data-k]').forEach(el => { el.oninput = () => {
-  const k = el.dataset.k; st.spec = Object.assign({}, Bird.getSpec(), {[k]: el.type === 'range' ? +el.value : el.value}); if (k === 'body' || k === 'face') st.spec.tail = '';
+  const k = el.dataset.k; st.spec = Object.assign({}, Bird.getSpec(), st.spec || {}, {[k]: el.type === 'range' ? +el.value : el.value}); if (k === 'body' || k === 'face') st.spec.tail = '';
   st.edited = true; clearTimeout(specT); specT = setTimeout(() => { Bird.setSpec(st.spec); renderBirds(); save(); }, 40);
 }; });
 $('#custBtn').onclick = () => { const open = $('#custom').hidden; $('#custom').hidden = !open; $('#custBtn').setAttribute('aria-expanded', String(open)); $('#custBtn').textContent = open ? 'Done' : 'Customize'; };
@@ -379,6 +381,9 @@ $('#saveBird').onclick = () => {
 };
 $('#delBird').onclick = () => { st.birds = st.birds.filter(b => b.id !== st.bird); chooseBird('sky'); };
 $('#lively').value = st.lively; $('#lively').oninput = e => { st.lively = +e.target.value; Bird.setLively(st.lively); save(); };
+function setBg(c) { st.bg = c; Bird.setBg(c); save(); document.querySelectorAll('#bgChips button').forEach(b => b.classList.toggle('on', (b.dataset.c || '') === c)); if (c) $('#bgPick').value = c; }
+document.querySelectorAll('#bgChips button').forEach(b => { b.onclick = () => setBg(b.dataset.c || ''); });
+$('#bgPick').oninput = e => setBg(e.target.value);
 $('#angle').value = st.angle; $('#angle').oninput = e => { st.angle = +e.target.value; Bird.setAngle(st.angle); save(); };
 
 // A button for every movement, so each can be seen on demand
@@ -391,6 +396,7 @@ for (const [label, act] of [['Spread wing', 'spread'], ['Stretch', 'stretch'], [
 }
 
 Bird.init($('#stage'), {getEnv: voiceEnv, spec: st.spec || allBirds().find(b => b.id === st.bird) || Bird.PRESETS[0], angle: st.angle, lively: st.lively});
+setBg(st.bg || '');
 fillControls(Bird.getSpec()); renderBirds();
 showBird(st.show); renderTiles(); setStatus();
 setInterval(tick, 1000);

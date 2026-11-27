@@ -84,6 +84,12 @@ button.btn.ghost{background:transparent}
 :focus-visible{outline:3px solid var(--cere);outline-offset:2px}
 input[type=range]{accent-color:var(--green);width:100%}
 label.field{display:grid;gap:4px;font-size:.88rem;color:var(--muted)}
+.bgrow{display:grid;gap:6px;font-size:.88rem;color:var(--muted);margin-top:12px}
+.bgchips{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.bgchips button{width:38px;height:38px;border-radius:50%;border:2px solid var(--line);cursor:pointer;padding:0}
+.bgchips button.on{outline:3px solid var(--accent,#7ccb5c);outline-offset:2px}
+.bgpick{display:flex;align-items:center;gap:6px}
+.bgpick input{width:44px;height:38px;padding:2px;border:1.5px solid var(--line);border-radius:10px;background:var(--surface);cursor:pointer}
 .switch{display:flex;gap:10px;align-items:flex-start;cursor:pointer}
 .switch input{width:20px;height:20px;accent-color:var(--green);flex:0 0 auto;margin-top:2px}
 .switch b{display:block;color:var(--ink)} .switch span{display:block;font-size:.86rem;color:var(--muted)}
@@ -144,6 +150,19 @@ label.field{display:grid;gap:4px;font-size:.88rem;color:var(--muted)}
         <div class="sliders">
           <label class="field" for="lively">Liveliness: calm to busy<input type="range" id="lively" min="0.5" max="1.8" step="0.05"></label>
           <label class="field" for="angle">Branch angle<input type="range" id="angle" min="-25" max="25" step="1"></label>
+        </div>
+        <div class="field bgrow"><span>Background colour</span>
+          <div class="bgchips" id="bgChips">
+            <button type="button" data-c="" style="background:#93bd95" aria-label="Leafy green" title="Leafy green"></button>
+            <button type="button" data-c="#8fc4e8" style="background:#8fc4e8" aria-label="Sky blue" title="Sky blue"></button>
+            <button type="button" data-c="#e9d9a8" style="background:#e9d9a8" aria-label="Sand" title="Sand"></button>
+            <button type="button" data-c="#f0b8a4" style="background:#f0b8a4" aria-label="Peach" title="Peach"></button>
+            <button type="button" data-c="#b9a6dc" style="background:#b9a6dc" aria-label="Lilac" title="Lilac"></button>
+            <button type="button" data-c="#f2f0e8" style="background:#f2f0e8" aria-label="White" title="White"></button>
+            <button type="button" data-c="#9aa3a8" style="background:#9aa3a8" aria-label="Grey" title="Grey"></button>
+            <button type="button" data-c="#2c3440" style="background:#2c3440" aria-label="Dark" title="Dark"></button>
+            <label class="bgpick" title="Any colour">Other<input type="color" id="bgPick" value="#93bd95" aria-label="Any background colour"></label>
+          </div>
         </div>
       </div>
       <div class="card design">
