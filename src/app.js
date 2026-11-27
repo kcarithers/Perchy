@@ -84,6 +84,28 @@ function choose(kind, pitch) {
   return scored[Math.floor(Math.random() * Math.min(4, scored.length))].c;
 }
 
+// A soft warble made from single notes of the real recordings. Budgies answer warble with warble: a quiet, rambling run
+// of short notes with small gaps, never the same twice. Notes come from clips near the wanted pitch and are nudged toward it.
+let NOTES = null;
+function warble(o = {}) {
+  if (!NOTES) { NOTES = []; for (const c of LIB.calls) for (const [a, b] of (c.notes || [])) if (b - a > 0.03 && b - a < 0.5) NOTES.push({c, a, b}); }
+  const ok = NOTES.filter(n => bufs.has(n.c.id)); if (!ok.length) return 0;
+  const target = o.pitch || S.pitch, want = o.sec || rand(1.2, 2.4), lvl = o.level == null ? 0.7 : o.level, t0 = ctx.currentTime + 0.03;
+  let t = 0, k = 0, last = null;
+  while (t < want && k < 16) {
+    let n = pick(ok); for (let i = 0; i < 8 && (n === last || Math.abs(Math.log(n.c.pitch / target)) > 0.1); i++) n = pick(ok);
+    last = n;
+    const rate = clamp(target / n.c.pitch, 0.95, 1.05) * rand(0.985, 1.015), len = n.b - n.a + 0.03, d = len / rate, s0 = t0 + t, lv = lvl * rand(0.55, 1);
+    const src = ctx.createBufferSource(); src.buffer = bufs.get(n.c.id); src.playbackRate.value = rate;
+    const g = ctx.createGain(); g.gain.setValueAtTime(0, s0); g.gain.linearRampToValueAtTime(lv, s0 + 0.008); g.gain.setValueAtTime(lv, s0 + d - 0.02); g.gain.linearRampToValueAtTime(0, s0 + d);
+    src.connect(g); g.connect(voice); src.start(s0, Math.max(0, n.a - 0.012), len);
+    t += d + (Math.random() < 0.15 ? rand(0.2, 0.38) : rand(0.03, 0.13)); k++;
+  }
+  markOutput(t * 1000 + 80); lastSoundEnd = Date.now() + t * 1000;
+  return t;
+}
+const isWarble = f => f.dur > 1.1 || f.syl >= 4;
+
 // ---------- quiet hours ----------
 function quietNow() {
   if (!S.set.quiet) return false;
@@ -114,30 +136,35 @@ function micUnavailable() {
   const n = $('#micNote'); n.hidden = false;
   n.textContent = "Perchy can't use the microphone here, so it can't hear your bird. Open this page in Safari or Chrome on the phone or tablet by the cage and allow the microphone. Calling out and the distant flock still work, and “Try a pretend call” shows how answering sounds.";
 }
-// Telling a budgie from everything else. A budgie call is a burst of sound between about 2 and 5.5 kHz whose pitch
-// jumps around quickly. Speech has a voice underneath it (energy below 1.2 kHz) and hissy consonants, a whistle holds
-// a steady or smoothly sliding pitch, and knocks and clicks are over in a moment. Only the first gets an answer.
+// Telling a budgie from everything else. Budgies make two kinds of sound worth answering: contact calls (short, about
+// 0.1-0.3 s, sweeping fast between about 2 and 4 kHz) and warble, the long chattering song a budgie sings when it feels
+// social, which mixes call-like notes, buzzy noisy notes and clicks, and reaches down to about 1 kHz. What sets people
+// apart is the voice underneath speech: a human voice puts most of its energy below about 500 Hz, where a budgie makes
+// almost nothing. A whistle holds a steady or smoothly sliding pitch, a hiss is noisy from start to end with no notes in
+// it, and knocks and clicks are over in a moment.
 function detect() {
   const an = Mic.an; if (!an) return;
   an.getFloatFrequencyData(Mic.fd);
-  const binHz = ctx.sampleRate / an.fftSize, fd = Mic.fd;
-  const l0 = Math.floor(150 / binHz), l1 = Math.floor(1200 / binHz), i0 = Math.floor(1000 / binHz), i1 = Math.floor(1900 / binHz), i2 = Math.ceil(5600 / binHz), i3 = Math.min(fd.length - 1, Math.ceil(9000 / binHz));
-  let band = 0, total = 0, cen = 0, low = 0, logSum = 0, pk = i1, pv = -Infinity;
-  for (let i = l0; i < l1; i++) low += Math.pow(10, fd[i] / 10);
-  for (let i = i0; i <= i3; i++) {
-    const db = Math.max(fd[i], -160), p = Math.pow(10, db / 10); total += p;
-    if (i >= i1 && i <= i2) { band += p; cen += p * i; logSum += db; if (db > pv) { pv = db; pk = i; } }
+  const binHz = ctx.sampleRate / an.fftSize, fd = Mic.fd, B = hz => Math.round(hz / binHz);
+  const l0 = Math.max(1, B(90)), l1 = B(480), i0 = B(1150), i2 = B(6500), i3 = Math.min(fd.length - 1, B(9500));
+  let band = 0, all = 0, cen = 0, low = 0, logSum = 0, pk = i0, pv = -Infinity;
+  for (let i = l0; i < i3; i++) {
+    const db = Math.max(fd[i], -160), p = Math.pow(10, db / 10); all += p;
+    if (i < l1) low += p;
+    else if (i >= i0 && i <= i2) { band += p; cen += p * i; logSum += db; if (db > pv) { pv = db; pk = i; } }
   }
-  const nb = i2 - i1 + 1, bandDb = 10 * Math.log10(band + 1e-16), lowDb = 10 * Math.log10(low + 1e-16), ratio = band / (total + 1e-16), freq = cen / (band + 1e-16) * binHz;
-  const flat = Math.pow(10, logSum / nb / 10) / (band / nb + 1e-16); // near 0 for a clear tone, about 0.5 for hiss
+  const nb = i2 - i0 + 1, bandDb = 10 * Math.log10(band + 1e-16), lowDb = 10 * Math.log10(low + 1e-16), ratio = band / (all + 1e-16), freq = cen / (band + 1e-16) * binHz;
+  const flat = Math.pow(10, logSum / nb / 10) / (band / nb + 1e-16); // near 0 for a clear note, about 0.5 for hiss
   const now = performance.now(), suppressed = now < outputUntil + 260;
   if (bandDb < -125) return; // the microphone hasn't started delivering sound yet
   if (Mic.floor == null) { Mic.floor = bandDb + 3; Mic.lowFloor = lowDb + 3; }
-  const lowEx = lowDb - Mic.lowFloor; // how far the voice range has risen above the room's usual level
-  Mic.lowFloor += (lowDb - Mic.lowFloor) * (lowDb < Mic.lowFloor ? 0.2 : 0.01);
-  Mic.lowHist.push(suppressed ? 0 : lowEx); if (Mic.lowHist.length > 18) Mic.lowHist.shift();
+  const lowEx = lowDb - Mic.lowFloor, lowRel = lowDb - bandDb; // voice range: above the room's usual level, and against the bird's range
+  // the room's usual rumble, as an average that a single loud moment barely moves (a fan or traffic wobbles by a few dB; a voice jumps 15 dB or more)
+  if (!suppressed) Mic.lowFloor += (lowDb - Mic.lowFloor) * (lowDb < Mic.lowFloor ? 0.03 : 0.006);
+  const voicy = !suppressed && lowEx > 12 && lowRel > -4;   // a voice (or a thump) is sounding in this moment
+  Mic.lowHist.push(voicy ? 1 : 0); if (Mic.lowHist.length > 15) Mic.lowHist.shift();
   const margin = 15 - 9 * (S.set.sens / 100);
-  const active = !suppressed && bandDb > Mic.floor + margin && ratio > 0.5 && bandDb > -80;
+  const active = !suppressed && bandDb > Mic.floor + margin && ratio > 0.3 && bandDb > -82;
   // the room's usual level: follows quickly when nothing is going on, and creeps up under a sound that never stops
   if (!suppressed) Mic.floor += (bandDb - Mic.floor) * (bandDb < Mic.floor ? 0.2 : (Mic.cur ? 0.004 : 0.02));
   Mic.level += (bandDb - Mic.level) * 0.3;
@@ -145,32 +172,34 @@ function detect() {
   $('#levelTxt').textContent = suppressed ? 'Perchy is calling' : (active || Mic.cur ? 'hearing something' : 'listening');
   let c = Mic.cur;
   if (active) {
-    if (!c) c = Mic.cur = {start: now, last: now, fsum: 0, n: 0, syl: 1, inGap: false, flats: [], pks: [], low: Math.max(...Mic.lowHist)};
+    if (!c) c = Mic.cur = {start: now, last: now, fsum: 0, n: 0, syl: 1, inGap: false, flats: [], pks: [], voice: Mic.lowHist.reduce((a, b) => a + b, 0), nv: 0, va: 0, fr: 0};
     if (c.inGap) { c.syl++; c.inGap = false; }
     c.last = now; c.n++; c.loud = Math.max(c.loud || 0, bandDb - Mic.floor); c.fsum += freq; c.flats.push(flat); c.pks.push(pk * binHz);
+    if (voicy) c.nv++;
   }
   if (c) {
-    c.low = Math.max(c.low, lowEx);
+    c.fr++; if (voicy) c.va++;                                        // voice anywhere in the stretch, gaps included
     const gap = now - c.last;
-    if (gap > 50) c.inGap = true;
-    if (gap > 300 || suppressed || now - c.start > 3500) finishCall();
+    if (gap > 45) c.inGap = true;
+    if (gap > 320 || suppressed || now - c.start > 6000) finishCall();
   }
 }
 const median = a => { const s = [...a].sort((x, y) => x - y); return s.length ? s[Math.floor(s.length / 2)] : 0; };
 function judge(c) {
-  if (c.n < 5) return 'click';                                   // under about 100 ms
-  const f = c.fsum / c.n; if (f < 2200 || f > 4400) return 'a jingle or rattle';   // outside a budgie's range
-  if (c.low >= 15) return 'a voice or a thump';                    // the voice range was active just before or during it
-  if (median(c.flats) >= 0.4) return 'a hiss or speech';           // noise-like, not a call
-  const jumps = []; for (let i = 1; i < c.pks.length; i++) jumps.push(Math.abs(c.pks[i] - c.pks[i - 1]));
-  if (median(jumps) < 200) return 'a whistle or steady tone';      // budgie pitch never sits still this long
+  if (c.n < 4) return 'click';                                                     // under about 80 ms
+  const f = c.fsum / c.n; if (f < 1500 || f > 5200) return 'a jingle or rattle';   // outside a budgie's range
+  if (c.voice >= 3 || c.va / c.fr > 0.2 || c.nv / c.n > 0.25) return 'a voice or a thump';               // a voice sounded just before or through it
+  const tonal = c.flats.filter(x => x < 0.25).length / c.n;
+  if (median(c.flats) >= 0.45 && tonal < 0.15) return 'a hiss or rustle';           // noisy from start to end, no notes in it
+  let big = 0; for (let i = 1; i < c.pks.length; i++) if (Math.abs(c.pks[i] - c.pks[i - 1]) > 250) big++;
+  if (c.syl <= 2 && c.last - c.start > 380 && big / (c.pks.length - 1) < 0.15) return 'a whistle or steady tone';   // a budgie's pitch never holds or glides this long
   return null;
 }
 function finishCall() {
   const c = Mic.cur; Mic.cur = null;
   if (!c) return;
   const why = judge(c);
-  if (Mic.log) Mic.log.push({t: Math.round(c.start), dur: Math.round(c.last - c.start + 20), n: c.n, flat: +median(c.flats).toFixed(3), low: +c.low.toFixed(1), why});
+  if (Mic.log) Mic.log.push({t: Math.round(c.start), dur: Math.round(c.last - c.start + 20), n: c.n, syl: c.syl, f: Math.round(c.fsum / c.n), flat: +median(c.flats).toFixed(3), voice: c.voice, nv: c.nv, va: c.va, fr: c.fr, jf: +(c.pks.slice(1).filter((p, i) => Math.abs(p - c.pks[i]) > 250).length / Math.max(1, c.pks.length - 1)).toFixed(2), jm: median(c.pks.slice(1).map((p, i) => Math.abs(p - c.pks[i]))), why});
   if (why) { if (why !== 'click') { Mic.ignored++; $('#lastIgnored').textContent = why.charAt(0).toUpperCase() + why.slice(1) + ' · ' + new Date().toLocaleTimeString([], {hour: 'numeric', minute: '2-digit'}) + ' · ' + Mic.ignored + ' so far'; } return; }
   onCall({pitch: c.fsum / c.n, syl: clamp(c.syl, 1, 9), dur: (c.last - c.start) / 1000 + 0.02, loud: c.loud || 0}, false);
 }
@@ -178,7 +207,7 @@ function finishCall() {
 // ---------- conversation ----------
 let recentCalls = [];
 let awake = false, wakeLock = null, lastReplyAt = 0, pending = null, streak = 0, lastHeardAt = 0, missedCallOuts = 0, nextCallOut = 0, nextFlock = 0;
-function describe(f) { return kHz(f.pitch) + ' · ' + f.syl + (f.syl === 1 ? ' note' : ' notes') + ' · ' + f.dur.toFixed(2) + ' s'; }
+function describe(f) { return (isWarble(f) ? 'Warble' : 'Call') + ' · ' + kHz(f.pitch) + ' · ' + f.syl + (f.syl === 1 ? ' note' : ' notes') + ' · ' + f.dur.toFixed(2) + ' s'; }
 function setCap(t) { $('#cap').textContent = t; }
 function onCall(f, pretend) {
   const now = Date.now();
@@ -189,7 +218,7 @@ function onCall(f, pretend) {
     if (S.day.key !== dayKey()) S.day = {key: dayKey(), count: 0};
     S.day.count++;
     // a call soon after one of Perchy's counts as an answer, and that call gets used more
-    if (pending && now > pending.t && now - pending.t < 6000) { S.fav[pending.id] = (S.fav[pending.id] || 0) + 1; S.answered++; streak++; missedCallOuts = 0; }
+    if (pending && now > pending.t && now - pending.t < 6000) { if (pending.id != null) S.fav[pending.id] = (S.fav[pending.id] || 0) + 1; S.answered++; streak++; missedCallOuts = 0; }
     else if (now - lastSoundEnd > 12000) streak = 0;
   }
   // an excited bird bobs: loud, long or rapid-fire calls make Perchy bob its head, harder the more worked up things are
@@ -200,18 +229,30 @@ function onCall(f, pretend) {
   if (quietNow()) $('#lastReply').textContent = 'Quiet hours, not answering';
   else if (S.set.answer && (awake || pretend) && now - lastReplyAt > 1600 && now > lastSoundEnd + 300) {
     lastReplyAt = now;
-    // budgies answer a contact call fast, within about half a second
-    setTimeout(() => reply(f), rand(240, 620));
+    // a contact call gets a quick answer, within about half a second; warble is joined once your bird pauses
+    setTimeout(() => reply(f), isWarble(f) ? rand(350, 800) : rand(240, 620));
   }
   save(); renderTiles();
 }
-function reply(f) {
+function reply(f, tries = 0) {
   if (!bufs.size) return;
+  const target = f.pitch * 0.6 + S.pitch * 0.4;
+  if (isWarble(f)) {
+    // Your bird is warbling, which budgies do when they feel sociable. Join in softly once it pauses, but not after every
+    // burst: sometimes just listen, the way a flockmate would. If it has started again, wait for the next gap.
+    if (Mic.cur && tries < 3) { setTimeout(() => reply(f, tries + 1), 500); return; }
+    if (Mic.cur || Math.random() < 0.25) { $('#lastReply').textContent = 'Listening to your bird warble'; return; }
+    const d = warble({pitch: target, sec: clamp(f.dur * rand(0.5, 1), 0.8, 3), level: rand(0.5, 0.75)});
+    pending = {id: null, t: Date.now() + d * 1000};
+    if (Math.random() < 0.4) setTimeout(() => Bird.startAct('bob', performance.now()), rand(200, 600));
+    $('#lastReply').textContent = 'Warbled back · ' + kHz(target) + ' · ' + d.toFixed(2) + ' s';
+    setCap('Warbling along'); setTimeout(() => { if (awake) setCap(quietNow() ? 'Quiet hours' : 'Listening'); }, d * 1000 + 700);
+    return;
+  }
   // answer in kind: a chirp for a chirp, a phrase for a longer call, and a burst of chatter once the two of you get going
   let kind = (f.dur < 0.5 && f.syl <= 2) ? 'chirp' : 'phrase';
   if (kind === 'chirp' && Math.random() < 0.3) kind = 'phrase';
   if (streak >= 3 && Math.random() < 0.35) kind = 'chatter';
-  const target = f.pitch * 0.6 + S.pitch * 0.4;
   const clip = choose(kind, target) || choose('chirp', target); if (!clip) return;
   const rate = clamp(target / clip.pitch, 0.95, 1.05); // lean a little toward your bird's pitch, as flockmates do
   const d = say(clip, {rate, level: rand(0.8, 1)});
@@ -222,8 +263,16 @@ function reply(f) {
 }
 function callOut(manual) {
   if (!bufs.size) return;
+  // Unprompted calls follow Perchy's mood: drowsy or busy grooming it mostly keeps quiet and calls softly when it does;
+  // in a sociable or playful spell it sometimes warbles to itself, the sound a contented budgie makes.
+  const mood = manual ? '' : Bird.mood, quiet = mood === 'sleepy' || mood === 'grooming';
+  if (quiet && Math.random() < 0.6) return;
+  if ((mood === 'social' || mood === 'playful') && Math.random() < 0.45) {
+    const d = warble({sec: rand(1, 2.2), level: rand(0.35, 0.55)}); pending = {id: null, t: Date.now() + d * 1000}; missedCallOuts++;
+    $('#lastReply').textContent = 'Warbled to itself · ' + d.toFixed(2) + ' s'; return;
+  }
   const clip = choose(Math.random() < 0.7 ? 'chirp' : 'phrase', S.pitch); if (!clip) return;
-  const d = say(clip, {level: manual ? 0.95 : rand(0.55, 0.75), rate: rand(0.98, 1.02)});
+  const d = say(clip, {level: manual ? 0.95 : quiet ? rand(0.35, 0.5) : rand(0.55, 0.75), rate: rand(0.98, 1.02)});
   pending = {id: clip.id, t: Date.now() + d * 1000};
   $('#lastReply').textContent = 'Called out · ' + kHz(clip.pitch) + ' · ' + d.toFixed(2) + ' s';
   if (!manual) missedCallOuts++;
@@ -247,7 +296,7 @@ function tick() {
 }
 async function pretendCall() {
   await loadSounds();
-  const clip = choose(Math.random() < 0.6 ? 'chirp' : 'phrase', rand(2800, 3300)); if (!clip) return;
+  const r = Math.random(), clip = choose(r < 0.45 ? 'chirp' : r < 0.7 ? 'phrase' : 'chatter', rand(2800, 3300)); if (!clip) return;
   const d = say(clip, {level: 0.5, far: true});
   setTimeout(() => onCall({pitch: clip.pitch, syl: clip.n, dur: clip.dur}, true), d * 1000 + 60);
 }
@@ -442,4 +491,4 @@ setBg(st.bg || '');
 fillControls(Bird.getSpec()); renderBirds();
 showBird(st.show); renderTiles(); setStatus();
 setInterval(tick, 1000);
-window.__perchy = {S, Mic, LIB, Bird, state: () => ({awake, streak, heard: S.n, answered: S.answered, lastCall: $('#lastCall').textContent, lastReply: $('#lastReply').textContent})};
+window.__perchy = {S, Mic, LIB, Bird, warble, callOut, loadSounds, out: () => voice, ctx: () => ctx, state: () => ({awake, streak, heard: S.n, answered: S.answered, lastCall: $('#lastCall').textContent, lastReply: $('#lastReply').textContent})};

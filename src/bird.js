@@ -786,6 +786,7 @@ const Bird = (() => {
   }
   return {
     PRESETS, DEFAULT,
+    get mood() { return mood; },
     init(canvas, opts) { cv = canvas; g = cv.getContext('2d'); getEnv = opts.getEnv; paintBg(); paintBranch(); setSpec(opts.spec || spec); branchAngle = opts.angle || 0; ch.angle.x = ch.angle.t = branchAngle; lively = opts.lively || 1; ch.hyaw.x = 124; ch.hpitch.x = 16; ch.hy.x = -5; },
     setSpec, getSpec: () => Object.assign({}, spec),
     setBg(c) { bgCol = /^#[0-9a-f]{6}$/i.test(c || '') ? c : ''; paintBg(); }, setAngle(a) { branchAngle = clamp(+a || 0, -30, 30); }, setLively(l) { lively = clamp(+l || 1, 0.4, 2); },
