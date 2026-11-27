@@ -9,7 +9,7 @@ let toastT;
 function toast(msg) { const t = $('#toast'); t.textContent = msg; t.classList.add('show'); clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove('show'), 3200); }
 
 // ---------- saved state (this device only) ----------
-const DEFAULTS = {set: {vol: 50, answer: true, callOut: true, flock: true, ownVoice: true, phraseHigh: 0.15, quiet: false, show: true, sens: 55, bird: 'sky', angle: 8, lively: 1, bg: '', cere: '', birds: []}, n: 0, pitch: 3100, answered: 0, fav: {}, day: {key: '', count: 0}};
+const DEFAULTS = {set: {vol: 50, answer: true, callOut: true, flock: true, ownVoice: true, phraseHigh: 0.15, quiet: false, show: true, sens: 55, bird: 'sky', angle: 8, lively: 1, near: 0, drift: true, bg: '', cere: '', birds: []}, n: 0, pitch: 3100, answered: 0, fav: {}, day: {key: '', count: 0}};
 let S = JSON.parse(JSON.stringify(DEFAULTS));
 try { const raw = JSON.parse(localStorage.getItem('perchy.v3') || 'null'); if (raw) { Object.assign(S, raw); S.set = Object.assign({}, DEFAULTS.set, raw.set || {}); } } catch (e) {}
 let saveT;
@@ -626,10 +626,12 @@ $('#lively').value = st.lively; $('#lively').oninput = e => { st.lively = +e.tar
 function setBg(c) { st.bg = c; Bird.setBg(c); save(); document.querySelectorAll('#bgChips button').forEach(b => b.classList.toggle('on', (b.dataset.c || '') === c)); if (c) $('#bgPick').value = c; }
 document.querySelectorAll('#bgChips button').forEach(b => { b.onclick = () => setBg(b.dataset.c || ''); });
 $('#bgPick').oninput = e => setBg(e.target.value);
+$('#near').value = st.near; $('#near').oninput = e => { st.near = +e.target.value; Bird.setNear(st.near); save(); };
+$('#drift').checked = st.drift !== false; $('#drift').onchange = e => { st.drift = e.target.checked; Bird.setDrift(st.drift); save(); };
 $('#angle').value = st.angle; $('#angle').oninput = e => { st.angle = +e.target.value; Bird.setAngle(st.angle); save(); };
 
 // A button for every movement, so each can be seen on demand
-for (const [label, act] of [['Spread wing', 'spread'], ['Stretch', 'stretch'], ['Shuffle', 'shuffle'], ['Preen', 'preen'], ['Yawn', 'yawn'], ['Ruffle and shake', 'shake'], ['Tail wag', 'tailwag'], ['Peer', 'peer'], ['Turn around', 'turn'], ['Head bob', 'bob'], ['Beak grind', 'grind'], ['Raise forehead', 'puff'], ['Look at your bird', 'notice'], ['Chirp', 'chirp']]) {
+for (const [label, act] of [['Spread wing', 'spread'], ['Stretch', 'stretch'], ['Shuffle', 'shuffle'], ['Preen', 'preen'], ['Yawn', 'yawn'], ['Ruffle and shake', 'shake'], ['Tail wag', 'tailwag'], ['Peer', 'peer'], ['Turn around', 'turn'], ['Head bob', 'bob'], ['Beak grind', 'grind'], ['Raise forehead', 'puff'], ['Fly off and back', 'fly'], ['Look at your bird', 'notice'], ['Chirp', 'chirp']]) {
   const b = document.createElement('button'); b.className = 'btn'; b.textContent = label; $('#actBtns').append(b);
   b.onclick = async () => {
     if (!awake) { toast('Wake Perchy first'); return; }
@@ -638,7 +640,7 @@ for (const [label, act] of [['Spread wing', 'spread'], ['Stretch', 'stretch'], [
 }
 
 if (st.spec) st.spec.cere = st.cere;
-Bird.init($('#stage'), {getEnv: voiceEnv, spec: st.spec || Object.assign({}, allBirds().find(b => b.id === st.bird) || Bird.PRESETS[0], {cere: st.cere}), angle: st.angle, lively: st.lively});
+Bird.init($('#stage'), {getEnv: voiceEnv, spec: st.spec || Object.assign({}, allBirds().find(b => b.id === st.bird) || Bird.PRESETS[0], {cere: st.cere}), angle: st.angle, lively: st.lively, near: st.near, drift: st.drift !== false});
 setBg(st.bg || '');
 fillControls(Bird.getSpec()); renderBirds();
 showBird(st.show); renderTiles(); setStatus();
