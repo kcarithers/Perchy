@@ -242,7 +242,7 @@ label.field{display:grid;gap:4px;font-size:.88rem;color:var(--muted)}
 
       <div class="card">
         <h2>Your phrases</h2>
-        <p class="small muted">Pet budgies pick up words their people say a lot and slip them into their warble. Type a phrase you often say, tap Record, say it, and tap again to stop. Perchy turns your voice into a budgie version: small, raspy and a little breathy. It slips your phrases into its warble now and then, sometimes says one when it is in a chatty mood, and in full screen the speech-bubble button at the top says one with a single tap.</p>
+        <p class="small muted">Pet budgies pick up words their people say a lot and slip them into their warble. Type a phrase you often say, tap Record, say it, and tap again to stop. Perchy says it slowly in a low, buzzy budgie voice made from your bird's own warble, the way talking budgies do. It slips your phrases into its warble now and then, sometimes says one when it is in a chatty mood, and in full screen the speech-bubble button at the top says one with a single tap.</p>
         <div class="row"><input type="text" id="phraseText" maxlength="40" placeholder="For example: pretty bird" aria-label="The phrase"><button class="btn" id="recBtn">Record</button></div>
         <label class="field" for="phraseHigh">Budgie voice: deeper to higher<input type="range" id="phraseHigh" min="0" max="1" step="0.05"></label>
         <ul class="plist" id="phraseList"></ul>
@@ -1225,10 +1225,12 @@ function warble(o = {}) {
 const isWarble = f => f.dur > 1.1 || f.syl >= 4;
 
 // ---------- your phrases ----------
-// Budgies that copy words say them in a small, raspy, breathy voice that sits lower than their chirps. Perchy records you
-// saying a phrase and turns it into that: about your own speed (the "deeper to higher" slider speeds it up a little),
-// the chest boom of the voice thinned out, a throaty rasp, and a breathy layer rebuilt from noise shaped by your voice.
-// The plain recording is kept too, so moving the slider can remake every phrase. Everything stays on this device.
+// Budgies that copy words do it with their own sound source: a buzzy, warbly tone shaped by the throat and tongue into the
+// word's vowels and rhythm, said slowly and low, like the deep notes of their warble. Perchy does the same with a vocoder:
+// your recording (slowed down) only sets the shape of each moment, band by band, and the sound itself comes from a low
+// buzzy budgie tone, your own bird's warble and a little breath. A trace of your plain voice keeps the consonants clear.
+// The plain recording is kept too, so the "deeper to higher" slider can remake every phrase. Everything stays on this device.
+const VOICE_V = 3;   // bump when the budgie voice changes, so kept recordings are remade in the new voice
 let PHRASES = [];   // {id, text, buf, raw}: buf is the budgie version, raw your plain recording
 const DB = {db: null, open() { return this.db || (this.db = new Promise(res => { try { const r = indexedDB.open('perchy', 1); r.onupgradeneeded = () => r.result.createObjectStore('phrases', {keyPath: 'id'}); r.onsuccess = () => res(r.result); r.onerror = () => res(null); } catch (e) { res(null); } })); },
   async all() { const db = await this.open(); if (!db) return []; return new Promise(res => { const q = db.transaction('phrases').objectStore('phrases').getAll(); q.onsuccess = () => res(q.result || []); q.onerror = () => res([]); }); },
@@ -1240,33 +1242,45 @@ async function budgify(buf, high = st.phraseHigh) {
   let a = 0, b = d.length - 1; const thr = pk * 0.08; while (a < b && Math.abs(d[a]) < thr) a++; while (b > a && Math.abs(d[b]) < thr) b--;
   a = Math.max(0, a - Math.round(buf.sampleRate * 0.03)); b = Math.min(d.length, b + Math.round(buf.sampleRate * 0.08));
   const cut = new AudioBuffer({length: Math.max(1, b - a), sampleRate: buf.sampleRate, numberOfChannels: 1}); cut.copyToChannel(d.slice(a, b), 0);
-  const speed = mix(1.04, 1.45), dur = cut.duration / speed + 0.15, oc = new OfflineAudioContext(1, Math.ceil(dur * sr), sr);
+  await loadSounds();
+  const speed = mix(0.8, 1.05), dur = cut.duration / speed + 0.2, len = Math.ceil(dur * sr), oc = new OfflineAudioContext(1, len, sr);
   const src = oc.createBufferSource(); src.buffer = cut; src.playbackRate.value = speed;
-  const nb = oc.createBuffer(1, Math.ceil(dur * sr), sr), nd = nb.getChannelData(0); for (let i = 0; i < nd.length; i++) nd[i] = Math.random() * 2 - 1;
-  const noise = oc.createBufferSource(); noise.buffer = nb;
+  // the sound source: (1) a low buzzy tone that wanders in pitch the way a budgie's low chatter does
+  const buzz = oc.createOscillator(); buzz.type = 'sawtooth';
+  const f0 = mix(700, 1050), steps = Math.max(2, Math.ceil(dur * 12)), walk = new Float32Array(steps); let v = 0;
+  for (let i = 0; i < steps; i++) { v = clamp(v * 0.85 + rand(-0.35, 0.35), -1, 1); walk[i] = f0 * Math.pow(2, v * 0.35); }
+  buzz.frequency.setValueCurveAtTime(walk, 0, dur);
+  const wob = oc.createOscillator(), wobG = oc.createGain(); wob.frequency.value = 31; wobG.gain.value = f0 * 0.06; wob.connect(wobG); wobG.connect(buzz.frequency);
+  const carrier = oc.createGain(), bG = oc.createGain(); bG.gain.value = 0.5; buzz.connect(bG); bG.connect(carrier);
+  // (2) your own bird's warble, looped from a random spot
+  const ownC = LIB.calls.filter(c => c.kind === 'own' && bufs.has(c.id));
+  if (ownC.length) {
+    const ob = bufs.get(pick(ownC).id), od = ob.getChannelData(0); let e = 0; for (let i = 0; i < od.length; i += 4) e += od[i] * od[i];
+    const w = oc.createBufferSource(), wG = oc.createGain(); w.buffer = ob; w.loop = true; w.playbackRate.value = mix(0.86, 1);
+    wG.gain.value = 0.3 / Math.max(1e-4, Math.sqrt(e / (od.length / 4))); w.connect(wG); wG.connect(carrier); w.start(0, rand(0, ob.duration));
+  }
+  // (3) a little breath
+  const nb = oc.createBuffer(1, len, sr), nd = nb.getChannelData(0); for (let i = 0; i < nd.length; i++) nd[i] = Math.random() * 2 - 1;
+  const noise = oc.createBufferSource(), nG = oc.createGain(); noise.buffer = nb; nG.gain.value = 0.18; noise.connect(nG); nG.connect(carrier);
   const abs = oc.createWaveShaper(), curve = new Float32Array(1025); for (let i = 0; i < curve.length; i++) curve[i] = Math.abs(i / 512 - 1); abs.curve = curve;
-  const out = oc.createGain(), breath = oc.createGain(); breath.gain.value = 0.5; breath.connect(out); out.connect(oc.destination);
-  // breath: noise shaped band by band by your voice, at the voice's own pitch, so it whispers the words
-  const N = 18, lo = 280, hi = 6000, floor = mix(300, 1000);
+  const out = oc.createGain(), body = oc.createGain(); body.gain.value = 1; body.connect(out); out.connect(oc.destination);
+  // your voice sets the shape: each band of it opens the matching (slightly raised) band of the budgie sound
+  const N = 20, lo = 200, hi = 5200, lift = mix(1.15, 1.45), add = mix(250, 450);
   for (let k = 0; k < N; k++) {
-    const f = lo * Math.pow(hi / lo, k / (N - 1)); if (f < floor) continue;
-    const an = oc.createBiquadFilter(); an.type = 'bandpass'; an.frequency.value = f; an.Q.value = 5;
+    const f = lo * Math.pow(hi / lo, k / (N - 1));
+    const an = oc.createBiquadFilter(); an.type = 'bandpass'; an.frequency.value = f; an.Q.value = 4;
     const sh = oc.createWaveShaper(); sh.curve = curve;
-    const env = oc.createBiquadFilter(); env.type = 'lowpass'; env.frequency.value = 35; env.Q.value = 0.5;
-    const syn = oc.createBiquadFilter(); syn.type = 'bandpass'; syn.frequency.value = f; syn.Q.value = 5;
+    const env = oc.createBiquadFilter(); env.type = 'lowpass'; env.frequency.value = 30; env.Q.value = 0.5;
+    const syn = oc.createBiquadFilter(); syn.type = 'bandpass'; syn.frequency.value = Math.min(9000, f * lift + add); syn.Q.value = 4;
     const vca = oc.createGain(); vca.gain.value = 0;
     src.connect(an); an.connect(sh); sh.connect(env); env.connect(vca.gain);
-    noise.connect(syn); syn.connect(vca); vca.connect(breath);
+    carrier.connect(syn); syn.connect(vca); vca.connect(body);
   }
-  // the voice itself: thinner (no chest), a nasal lift around 2.5 kHz, and a fast flutter that gives the throaty budgie rasp
-  const h1 = oc.createBiquadFilter(), h2 = oc.createBiquadFilter(), nose = oc.createBiquadFilter(), top = oc.createBiquadFilter(), rasp = oc.createGain();
-  for (const h of [h1, h2]) { h.type = 'highpass'; h.frequency.value = mix(330, 950); h.Q.value = 0.7; }
-  nose.type = 'peaking'; nose.frequency.value = 2500; nose.Q.value = 1.1; nose.gain.value = 7;
-  top.type = 'lowpass'; top.frequency.value = 7000; top.Q.value = 0.7;
-  const flut = oc.createOscillator(), flutG = oc.createGain(); flut.frequency.value = 48; flutG.gain.value = 0.32; rasp.gain.value = 0.62;
-  flut.connect(flutG); flutG.connect(rasp.gain);
-  src.connect(h1); h1.connect(h2); h2.connect(nose); nose.connect(top); top.connect(rasp); rasp.connect(out);
-  src.start(); noise.start(); flut.start();
+  // a trace of your plain voice, only its upper part, so the consonants stay clear
+  const h1 = oc.createBiquadFilter(), h2 = oc.createBiquadFilter(), cg = oc.createGain(); cg.gain.value = 0.22;
+  for (const h of [h1, h2]) { h.type = 'highpass'; h.frequency.value = 1400; h.Q.value = 0.7; }
+  src.connect(h1); h1.connect(h2); h2.connect(cg); cg.connect(out);
+  src.start(); buzz.start(); wob.start(); noise.start();
   const r = await oc.startRendering(), x = r.getChannelData(0);
   let m = 0; for (let i = 0; i < x.length; i++) m = Math.max(m, Math.abs(x[i]));
   const g = m ? 0.85 / m : 1, fn = Math.round(sr * 0.02); for (let i = 0; i < x.length; i++) x[i] *= g * Math.min(1, i / fn, (x.length - 1 - i) / fn);
@@ -1293,15 +1307,15 @@ function renderPhrases() {
 async function loadPhrases() {
   const rows = await DB.all(); ensureAudio();
   const mk = (pcm, sr) => { const b = ctx.createBuffer(1, pcm.length, sr); b.copyToChannel(pcm, 0); return b; };
-  PHRASES = rows.map(r => ({id: r.id, text: r.text, buf: mk(r.pcm, r.sr), raw: r.raw ? mk(r.raw, r.rsr) : null, high: r.high}));
+  PHRASES = rows.map(r => ({id: r.id, text: r.text, buf: mk(r.pcm, r.sr), raw: r.raw ? mk(r.raw, r.rsr) : null, high: r.high, v: r.v}));
   renderPhrases();
-  for (const p of PHRASES) if (p.raw && p.high !== st.phraseHigh) await remake(p);
+  for (const p of PHRASES) if (p.raw && (p.high !== st.phraseHigh || p.v !== VOICE_V)) await remake(p);
 }
 // Remake a phrase from its plain recording at the current "deeper to higher" setting (older phrases had no plain copy kept)
 async function remake(p) {
   if (!p.raw) return false;
-  const out = await budgify(p.raw); p.buf = out; p.high = st.phraseHigh;
-  DB.put({id: p.id, text: p.text, sr: out.sampleRate, pcm: out.getChannelData(0).slice(), rsr: p.raw.sampleRate, raw: p.raw.getChannelData(0).slice(), high: p.high});
+  const out = await budgify(p.raw); p.buf = out; p.high = st.phraseHigh; p.v = VOICE_V;
+  DB.put({id: p.id, text: p.text, sr: out.sampleRate, pcm: out.getChannelData(0).slice(), rsr: p.raw.sampleRate, raw: p.raw.getChannelData(0).slice(), high: p.high, v: VOICE_V});
   return true;
 }
 const Rec = {mr: null, stream: null, chunks: [], t: 0, stopT: 0, busy: false};
@@ -1324,7 +1338,7 @@ async function recDone() {
     if (Date.now() - Rec.t < 400) throw new Error('short');
     const raw = await new Blob(Rec.chunks, {type: mr.mimeType}).arrayBuffer(), buf = await ctx.decodeAudioData(raw), out = await budgify(buf);
     const text = $('#phraseText').value.trim(), id = 'p' + Date.now().toString(36), pcm = out.getChannelData(0).slice();
-    DB.put({id, text, sr: out.sampleRate, pcm, rsr: buf.sampleRate, raw: buf.getChannelData(0).slice(), high: st.phraseHigh}); PHRASES.push({id, text, buf: out, raw: buf, high: st.phraseHigh}); if (PHRASES.length > 8) { DB.del(PHRASES[0].id); PHRASES.shift(); }
+    DB.put({id, text, sr: out.sampleRate, pcm, rsr: buf.sampleRate, raw: buf.getChannelData(0).slice(), high: st.phraseHigh, v: VOICE_V}); PHRASES.push({id, text, buf: out, raw: buf, high: st.phraseHigh, v: VOICE_V}); if (PHRASES.length > 8) { DB.del(PHRASES[0].id); PHRASES.shift(); }
     $('#phraseText').value = ''; renderPhrases(); sayPhrase(PHRASES[PHRASES.length - 1], {level: 0.9});
   } catch (e) { toast(e.message === 'short' ? 'Hold the button while you speak' : "That recording didn't work. Try again"); }
   Rec.busy = false; Rec.listening = false; $('#recBtn').textContent = 'Record';

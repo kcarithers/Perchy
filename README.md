@@ -2,7 +2,7 @@
 
 A flockmate for a lone budgie. Perchy shows a budgie on a branch, listens for your bird through the microphone, and answers with real wild budgie calls: a quick chirp for a contact call, and a soft warble stitched from single real notes when your bird warbles. When it's quiet it calls out now and then, more softly when it's drowsy or grooming and sometimes warbling to itself when it's in a sociable mood, and every few minutes a real flock chatters in the distance.
 
-**Your phrases.** Type a phrase you often say, tap Record, say it and tap again (or hold the button while you speak). Perchy keeps your plain recording and makes a budgie version near your own speed: the chest boom thinned out, a nasal lift, a throaty rasp and a breathy whispered layer, the small, lower voice talking budgies use. A "deeper to higher" slider remakes every phrase. Perchy slips phrases into its warble now and then, sometimes says one in a chatty mood, and in full screen the speech-bubble button says a random one with one tap. Recordings stay on the device (IndexedDB).
+**Your phrases.** Type a phrase you often say, tap Record, say it and tap again (or hold the button while you speak). Perchy keeps your plain recording and says it slowly in a budgie voice: a vocoder lets your slowed recording shape a low, buzzy, wandering budgie tone mixed with your own bird's warble and a little breath, with a trace of your plain voice for the consonants. A "deeper to higher" slider remakes every phrase. Perchy slips phrases into its warble now and then, sometimes says one in a chatty mood, and in full screen the speech-bubble button says a random one with one tap. Recordings stay on the device (IndexedDB).
 
 ## How it tells your bird from other sounds
 
