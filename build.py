@@ -3,7 +3,7 @@
 import json, pathlib
 src = pathlib.Path(__file__).parent / 'src'
 lib = json.loads((src / 'sounds.json').read_text())
-for c in lib['calls']: c.pop('notes', None)
+# each call keeps its list of notes (start and end times), which Perchy's warble is stitched from
 html = (src / 'template.html').read_text()
 html = html.replace('/*LIB*/', json.dumps(lib, separators=(',', ':')))
 html = html.replace('/*BIRD*/', (src / 'bird.js').read_text()).replace('/*APP*/', (src / 'app.js').read_text())
