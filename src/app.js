@@ -357,14 +357,12 @@ function fillControls(sp) { document.querySelectorAll('#custom [data-k]').forEac
 const CERE0 = '#5b86d8';                                        // the cere is its own choice (blue unless you change it); a variety never changes it
 if (!/^#[0-9a-f]{6}$/i.test(st.cere || '')) { const mine = st.birds.find(b => b.id === st.bird); st.cere = mine && mine.cere ? mine.cere : CERE0; }
 function renderBirds() {
-  for (const [sel, list] of [['#birdPick', Bird.PRESETS], ['#myPick', st.birds]]) {
-    const box = $(sel); box.innerHTML = '';
-    for (const b of list) {
-      const x = document.createElement('button'), i = document.createElement('i'); i.style.background = 'linear-gradient(135deg,' + b.face + ' 0 38%,' + b.body + ' 38%)';
-      x.append(i, b.name); x.setAttribute('aria-pressed', String(b.id === st.bird && !st.edited)); x.onclick = () => chooseBird(b.id); box.append(x);
-    }
+  for (const [sel, list, none] of [['#birdPick', Bird.PRESETS, 'Choose a variety'], ['#myPick', st.birds, st.birds.length ? 'Choose a saved bird' : 'None saved yet']]) {
+    const box = $(sel), here = !st.edited && list.some(b => b.id === st.bird); box.innerHTML = '';
+    const o0 = document.createElement('option'); o0.value = ''; o0.textContent = none; o0.disabled = list.length > 0; box.append(o0);
+    for (const b of list) { const o = document.createElement('option'); o.value = b.id; o.textContent = b.name; box.append(o); }
+    box.value = here ? st.bird : ''; box.classList.toggle('on', here); box.disabled = !list.length;
   }
-  $('#myNone').hidden = st.birds.length > 0; $('#myPick').hidden = !st.birds.length;
   const mine = st.birds.some(b => b.id === st.bird); $('#delBird').hidden = !mine;
   document.querySelectorAll('#cereChips button').forEach(b => b.classList.toggle('on', b.dataset.c.toLowerCase() === st.cere.toLowerCase())); $('#cerePick').value = st.cere;
 }
@@ -376,6 +374,7 @@ function chooseBird(id) {
   st.bird = b.id; st.spec = Object.assign({}, b, keep, {cere: st.cere}); st.edited = false; Bird.setSpec(st.spec); fillControls(Bird.getSpec()); $('#birdName').value = own ? b.name : '';
   $('#stage').setAttribute('aria-label', 'Perchy, a ' + b.name.toLowerCase() + ' budgie on a branch'); renderBirds(); save();
 }
+for (const sel of ['#birdPick', '#myPick']) $(sel).onchange = e => { if (e.target.value) chooseBird(e.target.value); };
 function setCere(c) { st.cere = c; st.spec = Object.assign({}, Bird.getSpec(), st.spec || {}, {cere: c}); Bird.setSpec(st.spec); renderBirds(); save(); }
 document.querySelectorAll('#cereChips button').forEach(b => { b.onclick = () => setCere(b.dataset.c); });
 $('#cerePick').oninput = e => setCere(e.target.value);
