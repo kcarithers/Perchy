@@ -30,9 +30,9 @@ function ensureAudio() {
     master = ctx.createGain(); master.connect(lim); lim.connect(ctx.destination);
     voice = ctx.createGain(); voice.connect(master);
     voiceAn = ctx.createAnalyser(); voiceAn.fftSize = 512; voice.connect(voiceAn); envBuf = new Float32Array(voiceAn.fftSize);
-    // the distant flock: quieter and with the top end rolled off, as far-off sound is
-    far = ctx.createGain(); far.gain.value = 0.5;
-    const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 4600; lp.Q.value = 0.4;
+    // the flock in the distance: a little quieter, with only the very top rolled off, as sound a few trees away is
+    far = ctx.createGain(); far.gain.value = 0.7;
+    const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 7500; lp.Q.value = 0.4;
     far.connect(lp); lp.connect(master);
     applyVolume();
   }
@@ -84,22 +84,30 @@ function choose(kind, pitch) {
   return scored[Math.floor(Math.random() * Math.min(4, scored.length))].c;
 }
 
-// A soft warble made from single notes of the real recordings. Budgies answer warble with warble: a quiet, rambling run
-// of short notes with small gaps, never the same twice. Notes come from clips near the wanted pitch and are nudged toward it.
-let NOTES = null;
+// A soft warble made from real runs of notes. Budgies answer warble with warble. Rather than piecing single notes together
+// (which sounded choppy), Perchy plays an unbroken stretch of several notes from one real recording, with the bird's own
+// rhythm and the faint sound of the air between notes, and sometimes runs straight on into a second stretch.
+let RUNS = null;
 function warble(o = {}) {
-  if (!NOTES) { NOTES = []; for (const c of LIB.calls) for (const [a, b] of (c.notes || [])) if (b - a > 0.03 && b - a < 0.5) NOTES.push({c, a, b}); }
-  const ok = NOTES.filter(n => bufs.has(n.c.id)); if (!ok.length) return 0;
+  if (!RUNS) {
+    RUNS = [];
+    for (const c of LIB.calls) { const N = c.notes || []; if (N.length < 2) continue;
+      for (let i = 0; i < N.length; i++) for (let j = i + 1; j < N.length; j++) { const a = Math.max(0, N[i][0] - 0.03), b = Math.min(c.dur, N[j][1] + 0.06); if (b - a > 3.2) break; RUNS.push({c, a, b, n: j - i + 1}); } }
+  }
+  const ok = RUNS.filter(r => bufs.has(r.c.id)); if (!ok.length) return 0;
   const target = o.pitch || S.pitch, want = o.sec || rand(1.2, 2.4), lvl = o.level == null ? 0.7 : o.level, t0 = ctx.currentTime + 0.03;
-  let t = 0, k = 0, last = null;
-  while (t < want && k < 16) {
-    let n = pick(ok); for (let i = 0; i < 8 && (n === last || Math.abs(Math.log(n.c.pitch / target)) > 0.1); i++) n = pick(ok);
-    last = n;
-    const rate = clamp(target / n.c.pitch, 0.95, 1.05) * rand(0.985, 1.015), len = n.b - n.a + 0.03, d = len / rate, s0 = t0 + t, lv = lvl * rand(0.55, 1);
-    const src = ctx.createBufferSource(); src.buffer = bufs.get(n.c.id); src.playbackRate.value = rate;
-    const g = ctx.createGain(); g.gain.setValueAtTime(0, s0); g.gain.linearRampToValueAtTime(lv, s0 + 0.008); g.gain.setValueAtTime(lv, s0 + d - 0.02); g.gain.linearRampToValueAtTime(0, s0 + d);
-    src.connect(g); g.connect(voice); src.start(s0, Math.max(0, n.a - 0.012), len);
-    t += d + (Math.random() < 0.15 ? rand(0.2, 0.38) : rand(0.03, 0.13)); k++;
+  let t = 0, last = null;
+  for (let k = 0; k < 3 && t < want - 0.4; k++) {
+    // a run that fits the time left and is near the wanted pitch, from a different recording than the last one
+    const left = want - t, fit = ok.filter(r => r.c !== (last && last.c) && r.b - r.a <= left + 0.5 && r.b - r.a >= Math.min(0.6, left));
+    const pool = fit.length ? fit : ok; let r = pick(pool);
+    for (let i = 0; i < 10 && Math.abs(Math.log(r.c.pitch / target)) > 0.08; i++) r = pick(pool);
+    last = r;
+    const rate = clamp(target / r.c.pitch, 0.96, 1.04), len = r.b - r.a, d = len / rate, s0 = t0 + t, lv = lvl * rand(0.8, 1);
+    const src = ctx.createBufferSource(); src.buffer = bufs.get(r.c.id); src.playbackRate.value = rate;
+    const g = ctx.createGain(); g.gain.setValueAtTime(0, s0); g.gain.linearRampToValueAtTime(lv, s0 + 0.03); g.gain.setValueAtTime(lv, s0 + d - 0.06); g.gain.linearRampToValueAtTime(0, s0 + d);
+    src.connect(g); g.connect(voice); src.start(s0, r.a, len);
+    t += d + (Math.random() < 0.6 ? rand(-0.04, 0.12) : rand(0.25, 0.5));   // mostly runs straight on, sometimes a short breath
   }
   markOutput(t * 1000 + 80); lastSoundEnd = Date.now() + t * 1000;
   return t;
@@ -280,10 +288,13 @@ function callOut(manual) {
 function scheduleCallOut() { nextCallOut = Date.now() + (missedCallOuts > 5 ? rand(150, 300) : rand(40, 95)) * 1000; }
 function playFlock() {
   const ids = [...bedBufs.keys()]; if (!ids.length) return;
-  const buf = bedBufs.get(pick(ids)), src = ctx.createBufferSource(); src.buffer = buf; src.playbackRate.value = rand(0.98, 1.02);
-  const g = ctx.createGain(); g.gain.value = rand(0.7, 1); src.connect(g); g.connect(far); src.start();
-  markOutput(buf.duration * 1000 + 150); Bird.listenUp(buf.duration);
-  setCap('A flock passing'); setTimeout(() => { if (awake) setCap(quietNow() ? 'Quiet hours' : 'Listening'); }, buf.duration * 1000);
+  // a random 8 to 14 second stretch of a longer real flock recording, so it is rarely the same twice, faded in and out
+  const buf = bedBufs.get(pick(ids)), len = Math.min(buf.duration, rand(8, 14)), off = rand(0, buf.duration - len), now = ctx.currentTime;
+  const src = ctx.createBufferSource(); src.buffer = buf; src.playbackRate.value = rand(0.98, 1.02);
+  const g = ctx.createGain(), lv = rand(0.7, 1); g.gain.setValueAtTime(0, now); g.gain.linearRampToValueAtTime(lv, now + 1.5); g.gain.setValueAtTime(lv, now + len - 2); g.gain.linearRampToValueAtTime(0, now + len);
+  src.connect(g); g.connect(far); src.start(now, off, len);
+  markOutput(len * 1000 + 150); Bird.listenUp(len);
+  setCap('A flock passing'); setTimeout(() => { if (awake) setCap(quietNow() ? 'Quiet hours' : 'Listening'); }, len * 1000);
 }
 // Once a second: the gentle things Perchy does unprompted.
 function tick() {
