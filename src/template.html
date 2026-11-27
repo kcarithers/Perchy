@@ -61,6 +61,10 @@ body.solo #stage{width:100vw;height:100dvh;max-height:none;aspect-ratio:auto}
 body.solo .stage .cap{left:max(12px,env(safe-area-inset-left,0px));bottom:auto;top:max(16px,env(safe-area-inset-top,0px))}
 body.solo .stage .solo-btn{top:max(12px,env(safe-area-inset-top,0px));right:max(12px,env(safe-area-inset-right,0px))}
 .ctl{display:contents}
+.say-btn{display:none}
+body.solo .stage .say-btn{display:grid;place-items:center;position:absolute;z-index:6;top:max(12px,env(safe-area-inset-top,0px));right:calc(max(12px,env(safe-area-inset-right,0px)) + 52px);width:40px;height:40px;padding:0;border-radius:50%;border:0;background:rgba(16,28,18,.45);color:#fff;cursor:pointer;touch-action:none}
+.say-btn svg{width:21px;height:21px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;pointer-events:none}
+.say-btn:active{background:var(--green);color:var(--green-ink)}
 .tbar,.sheet{display:none}
 body.solo .tbar{display:flex;gap:10px;position:absolute;z-index:6;left:50%;transform:translateX(-50%);bottom:max(10px,env(safe-area-inset-bottom,0px))}
 .tbar button{width:44px;height:44px;border-radius:50%;border:0;padding:0;display:grid;place-items:center;background:rgba(16,28,18,.45);color:#fff;cursor:pointer;touch-action:none;transition:transform .6s linear,background .6s linear}
@@ -143,6 +147,7 @@ label.field{display:grid;gap:4px;font-size:.88rem;color:var(--muted)}
         <canvas id="stage" aria-label="Perchy, a budgie on a branch"></canvas>
         <div class="hiddenmsg" id="hiddenMsg" hidden>Perchy is hidden. The sounds still work.</div>
         <span class="cap" id="cap">Dozing</span>
+        <button class="say-btn" id="sayBtn" type="button" aria-label="Say one of your phrases" title="Say a phrase"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 5.500h14a1.500 1.500 0 0 1 1.500 1.500v8a1.500 1.500 0 0 1-1.500 1.500H11l-4.500 3.500v-3.500H5A1.500 1.500 0 0 1 3.500 15V7A1.500 1.500 0 0 1 5 5.500z"/><path d="M8 10h8M8 13h5"/></svg></button>
         <button class="solo-btn" id="soloBtn" aria-label="Show only the bird, full screen" title="Full screen">⤢</button>
         <div class="tbar" id="tbar">
           <button type="button" data-t="sound" aria-label="Sound (press and hold)" title="Sound"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9.5h3.5L12 5.5v13l-4.5-4H4z"/><path d="M15.5 9a4.5 4.5 0 0 1 0 6M18 6.5a8 8 0 0 1 0 11"/></svg></button>
@@ -237,8 +242,9 @@ label.field{display:grid;gap:4px;font-size:.88rem;color:var(--muted)}
 
       <div class="card">
         <h2>Your phrases</h2>
-        <p class="small muted">Pet budgies pick up words their people say a lot and slip them into their warble. Type a phrase you often say, then press and hold the button and say it. Perchy turns your voice into a budgie version and now and then works it into its warble.</p>
-        <div class="row"><input type="text" id="phraseText" maxlength="40" placeholder="For example: pretty bird" aria-label="The phrase"><button class="btn" id="recBtn">Hold to record</button></div>
+        <p class="small muted">Pet budgies pick up words their people say a lot and slip them into their warble. Type a phrase you often say, tap Record, say it, and tap again to stop. Perchy turns your voice into a budgie version: small, raspy and a little breathy. It slips your phrases into its warble now and then, sometimes says one when it is in a chatty mood, and in full screen the speech-bubble button at the top says one with a single tap.</p>
+        <div class="row"><input type="text" id="phraseText" maxlength="40" placeholder="For example: pretty bird" aria-label="The phrase"><button class="btn" id="recBtn">Record</button></div>
+        <label class="field" for="phraseHigh">Budgie voice: deeper to higher<input type="range" id="phraseHigh" min="0" max="1" step="0.05"></label>
         <ul class="plist" id="phraseList"></ul>
       </div>
 
