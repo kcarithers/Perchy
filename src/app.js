@@ -302,7 +302,7 @@ const stageBox = $('#stage').parentElement;
 function setSolo(on) {
   document.body.classList.toggle('solo', on); $('#soloBtn').textContent = on ? '✕' : '⤢';
   $('#soloBtn').setAttribute('aria-label', on ? 'Leave full screen' : 'Show only the bird, full screen'); $('#soloBtn').title = on ? 'Leave full screen' : 'Full screen';
-  if (!on) setSheet(false);
+  if (!on) setSheet('');
   try { if (on && stageBox.requestFullscreen && !document.fullscreenElement) stageBox.requestFullscreen().catch(() => {}); else if (!on && document.fullscreenElement) document.exitFullscreen().catch(() => {}); } catch (e) {}
 }
 // In full screen the close button needs a held press, so a peck cannot close it
@@ -319,29 +319,38 @@ for (const ev of ['pointerup', 'pointerleave', 'pointercancel']) $('#soloBtn').a
 });
 $('#soloBtn').addEventListener('keydown', e => { if ((e.key === 'Enter' || e.key === ' ') && document.body.classList.contains('solo')) { e.preventDefault(); setSolo(false); } });
 $('#fullBtn').onclick = () => setSolo(true);
-// Settings in full screen: a held press on the gear slides the controls up over the bird. A touch on the bird closes them without making a call.
-const homes = [];
-function setSheet(on) {
-  const b = document.body; if (on === b.classList.contains('sheet-open')) return;
-  if (on) for (const id of ['#ctlA', '#ctlB']) { const el = $(id), mark = document.createComment('ctl'); el.before(mark); homes.push([el, mark]); $('#sheetBody').append(el); }
-  else while (homes.length) { const [el, mark] = homes.pop(); mark.replaceWith(el); }
-  b.classList.toggle('sheet-open', on); $('#sheet').setAttribute('aria-hidden', on ? 'false' : 'true');
-  if (on) { $('#sheetBody').scrollTop = 0; sheetAt = Date.now(); }
+// Settings in full screen: a row of small topic icons along the bottom. A held press on one opens a short strip with only that topic's
+// controls, and the bird moves up into the space that is left. A touch on the bird, or on the lit icon, closes it without making a call.
+const homes = []; let topic = '', sheetAt = 0;
+const wideMq = matchMedia('(min-aspect-ratio:5/4)');
+function fitStage() { $('#stage').style.height = topic && !wideMq.matches ? Math.max(120, stageBox.clientHeight - $('#sheet').offsetHeight) + 'px' : ''; }
+function setSheet(t) {
+  t = t || ''; if (t === topic) return;
+  while (homes.length) { const [el, mark] = homes.pop(); mark.replaceWith(el); }
+  if (t) for (const el of document.querySelectorAll('[data-topic="' + t + '"]')) { const mark = document.createComment('ctl'); el.before(mark); homes.push([el, mark]); $('#sheetBody').append(el); }
+  topic = t; document.body.classList.toggle('sheet-open', !!t); $('#sheet').setAttribute('aria-hidden', t ? 'false' : 'true');
+  for (const b of $('#tbar').children) b.classList.toggle('on', b.dataset.t === t);
+  if (t) { $('#sheetBody').scrollTop = 0; sheetAt = Date.now(); }
+  fitStage();
 }
-let gearT = 0, sheetAt = 0;
-$('#gearBtn').addEventListener('pointerdown', e => {
-  e.preventDefault(); clearTimeout(gearT); $('#gearBtn').classList.add('holding');
-  gearT = setTimeout(() => { gearT = 0; $('#gearBtn').classList.remove('holding'); setSheet(true); }, 600);
-});
-for (const ev of ['pointerup', 'pointerleave', 'pointercancel']) $('#gearBtn').addEventListener(ev, () => {
-  if (!gearT) return; clearTimeout(gearT); gearT = 0; $('#gearBtn').classList.remove('holding');
-  const c = $('#cap'); if (c.textContent !== 'Hold ⚙ for settings') capBack = c.textContent; c.textContent = 'Hold ⚙ for settings'; setTimeout(() => { if (c.textContent === 'Hold ⚙ for settings') c.textContent = capBack; }, 1800);
-});
-$('#gearBtn').addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setSheet(true); } });
-$('#sheetClose').onclick = () => setSheet(false);
-$('#sheetLeave').onclick = () => setSolo(false);
+if (window.ResizeObserver) new ResizeObserver(fitStage).observe($('#sheet'));
+addEventListener('resize', fitStage);
+let gearT = 0;
+const HINT = 'Hold an icon to open it';
+for (const b of $('#tbar').children) {
+  b.addEventListener('pointerdown', e => {
+    e.preventDefault(); clearTimeout(gearT); gearT = 0;
+    if (topic) { setSheet(b.dataset.t === topic ? '' : b.dataset.t); return; }      // already open: a tap switches topic or closes
+    b.classList.add('holding'); gearT = setTimeout(() => { gearT = 0; b.classList.remove('holding'); setSheet(b.dataset.t); }, 600);
+  });
+  for (const ev of ['pointerup', 'pointerleave', 'pointercancel']) b.addEventListener(ev, () => {
+    if (!gearT) return; clearTimeout(gearT); gearT = 0; b.classList.remove('holding');
+    const c = $('#cap'); if (c.textContent !== HINT) capBack = c.textContent; c.textContent = HINT; setTimeout(() => { if (c.textContent === HINT) c.textContent = capBack; }, 1800);
+  });
+  b.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setSheet(b.dataset.t === topic ? '' : b.dataset.t); } });
+}
 document.addEventListener('fullscreenchange', () => { if (!document.fullscreenElement && document.body.classList.contains('solo')) setSolo(false); });
-document.addEventListener('keydown', e => { if (e.key !== 'Escape' || !document.body.classList.contains('solo')) return; if (document.body.classList.contains('sheet-open')) setSheet(false); else setSolo(false); });
+document.addEventListener('keydown', e => { if (e.key !== 'Escape' || !document.body.classList.contains('solo')) return; if (topic) setSheet(''); else setSolo(false); });
 // ---------- touch to call ----------
 // A touch anywhere on the picture (a finger, or your bird's beak) makes Perchy look at the spot and call.
 // One call at a time: quick repeated pecks do not stack calls. In the page a touch counts when it lifts without sliding, so scrolling still works; in full screen it counts the moment it lands.
@@ -361,7 +370,7 @@ async function touched(e) {
 const onStage = e => e.target === $('#stage');
 stageBox.addEventListener('pointerdown', e => {
   if (!onStage(e) || e.button > 0) return;
-  if (document.body.classList.contains('sheet-open')) { e.preventDefault(); touchDown = null; if (Date.now() - sheetAt > 400) setSheet(false); return; }
+  if (document.body.classList.contains('sheet-open')) { e.preventDefault(); touchDown = null; if (Date.now() - sheetAt > 400) setSheet(''); return; }
   if (document.body.classList.contains('solo')) { e.preventDefault(); touched(e); touchDown = null; } else touchDown = {id: e.pointerId, x: e.clientX, y: e.clientY, t: Date.now()};
 });
 stageBox.addEventListener('pointerup', e => {
