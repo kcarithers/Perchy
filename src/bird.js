@@ -153,7 +153,12 @@ const Bird = (() => {
   function headFrame(th, ps, off) {
     const p = headPt(th, ps, off), a = sub(headPt(th + 0.03, ps, off), headPt(th - 0.03, ps, off)), b = sub(headPt(th, ps + 0.03, off), headPt(th, ps - 0.03, off));
     let n = norm(cross(a, b)); if (n[0] * p[0] + n[1] * p[1] + n[2] * p[2] < 0) n = [-n[0], -n[1], -n[2]];
-    return {p, n, t: norm(a)};
+    let t = norm(a);
+    if (p[2] < 2) {                                              // on the back of the head every feather lies pointing down the nape, so the bars run across in one direction and carry on into the neck
+      const dn = -n[1], D = [-dn * n[0], -1 - dn * n[1], -dn * n[2]], dl = Math.hypot(D[0], D[1], D[2]), k = sstep(2, -7, p[2]) * Math.min(1, dl * 2.5);
+      if (dl > 0.05) t = norm([t[0] + (D[0] / dl - t[0]) * k, t[1] + (D[1] / dl - t[1]) * k, t[2] + (D[2] / dl - t[2]) * k]);
+    }
+    return {p, n, t};
   }
   const BONE = {body: 0, head: 1, jaw: 2, neck: 3, tail: 4, wingR: 5, wingL: 6};
   function build() {
@@ -200,7 +205,7 @@ const Bird = (() => {
     }
     // neck: a sleeve of feathers from inside the back of the head down to the shoulders. Its top matches the head and its foot
     // matches the back, so the nape is one line from crown to back; it follows the head part-way when the head moves.
-    const NK = (y, lo) => { const q = clamp((106 - y) / 36, 0, 1), cz = lerp(13.2, 0.8, q), xr = lerp(14.6, 20.6, Math.pow(q, 1.25)), zb = lerp(15.4, 19.4, q), zf = lerp(9, 14, q), cl = Math.cos(lo); return [Math.sin(lo) * xr, y, cz + cl * (cl > 0 ? zf : zb)]; };
+    const NK = (y, lo) => { const q = clamp((106 - y) / 36, 0, 1), cz = lerp(13.2, 0.8, q), xr = lerp(11.5, 20.6, Math.pow(q, 0.75)), zb = lerp(12.5, 19.4, Math.pow(q, 0.75)), zf = lerp(9, 14, q), cl = Math.cos(lo); return [Math.sin(lo) * xr, y, cz + cl * (cl > 0 ? zf : zb)]; };
     for (let y = 106, row = 0; y > 70; row++) {
       const q = (106 - y) / 36, small = q < 0.5, l = lerp(4.2, 5.4, Math.min(1, q * 2)) + (small ? 0 : 6 * (q - 0.5)), w = lerp(6, 6.8, Math.min(1, q * 2)) + (small ? 0 : 3 * (q - 0.5)), n = Math.round(2 * PI * lerp(17, 22, q) / (w * 0.46)), o0 = r() * 6.28;
       for (let i = 0; i < n; i++) {
@@ -281,13 +286,13 @@ const Bird = (() => {
     spread: {make() { return {dur: 3.6, side: rnd() < 0.5 ? -1 : 1}; },           // the one-sided wing stretch: a wing opens down and back, the tail fans toward it
       run(a, p, o) { const k = envl(p, 0.3, 0.3), s = a.side; o[s > 0 ? 'spR' : 'spL'] = k * (0.94 + 0.06 * Math.sin(p * 40)); o.broll += s * 5 * k; o.byaw = lerp(o.byaw, -s * 22, k); o.by += 1.2 * k; o.tfan = k; o.tyaw += s * 16 * k; o.hpitch += 6 * k; o.hyawW = s * 30; o.lidAdd = 0.3 * k; } },
     stretch: {make() { return {dur: 3.3, side: rnd() < 0.5 ? -1 : 1}; },
-      run(a, p, o) { const k = envl(p, 0.3, 0.3), s = a.side; o[s > 0 ? 'wingR' : 'wingL'] = 0.16 * k; o.broll += s * 8 * k; o.byaw -= s * 12 * k; o.bpitch -= 4 * k; o.by += 2.2 * k; o.tfan = k; o.tyaw += s * 15 * k; o.hpitch -= 8 * k; o.hy += 3.5 * k; o.sleek = 0.35 * k; o.hyawW = -s * 22; o.lidAdd = 0.35 * k; } },
+      run(a, p, o) { const k = envl(p, 0.3, 0.3), s = a.side; o[s > 0 ? 'wingR' : 'wingL'] = 0.26 * k; o.broll += s * 13 * k; o.byaw -= s * 16 * k; o.bpitch -= 7 * k; o.by += 5 * k; o.tfan = k; o.tyaw += s * 26 * k; o.hpitch -= 12 * k; o.hy += 6 * k; o.sleek = 0.35 * k; o.hyawW = -s * 22; o.lidAdd = 0.35 * k; } },
     shake: {make() { return {dur: 2.1}; },
       run(a, p, o) { const t = p * a.dur, e = envl(p, 0.2, 0.42), sh = sstep(0.5, 0.75, t) * (1 - sstep(1.15, 1.5, t)), os = Math.sin(t * 2 * PI * 8.5) * sh;
         o.fluffAdd = e * 0.9; o.broll += 5 * os; o.byaw += 4 * Math.cos(t * 2 * PI * 8.5) * sh; o.hroll -= 10 * Math.sin(t * 2 * PI * 8.5 - 0.9) * sh; o.hyaw += 8 * Math.sin(t * 2 * PI * 8.5 - 1.6) * sh; o.ruffle = Math.max(sh, e * 0.3); o.lid = sh > 0.3 ? 0.8 : 0; o.tfan = sh * 0.5; o.wingR = o.wingL = sh * 0.1; },
       end() { fluffHold = 0.4; fluffHoldUntil = T + rr(3, 7); queue.push(['tailwag']); } },
-    tailwag: {make() { return {dur: 0.75}; },
-      run(a, p, o) { const w = Math.sin(p * a.dur * 2 * PI * 6.5) * envl(p, 0.15, 0.35); o.tyaw += 17 * w; o.byaw -= 1.5 * w; } },
+    tailwag: {make() { return {dur: 1.5}; },
+      run(a, p, o) { const e = envl(p, 0.12, 0.3), w = Math.sin(p * a.dur * 2 * PI * 4.2) * e; o.tyaw += 46 * w; o.byaw -= 8 * w; o.broll += 3.5 * w; o.tfan = Math.max(o.tfan || 0, 0.6 * e); o.tpitch += 8 * e; } },
     preen: {make() { const chest = rnd() < 0.35; return {dur: rr(2.6, 4.4), side: rnd() < 0.5 ? -1 : 1, chest}; },
       run(a, p, o) { const e = envl(p, 0.2, 0.22), t = p * a.dur, nb = Math.sin(t * 2 * PI * 5.5) * (0.5 + 0.5 * Math.sin(t * 2 * PI * 0.8)), s = a.side;
         o.hold = e; o.hyawL = a.chest ? s * 20 : s * 122; o.hpitchL = (a.chest ? 60 : 30) + 5 * nb; o.hrollL = a.chest ? s * 6 : -s * 16; o.hy -= (a.chest ? 7 : 4) * e; o.hx += s * (a.chest ? 0 : 3) * e; o.hyaw += 4 * nb * e;
