@@ -61,7 +61,8 @@ const Bird = (() => {
     bar(c, w, h, col, o, r) {                                    // a pale feather with a dark band near its tip: rows of these make the barring
       softTear(c, w, h, col); c.globalCompositeOperation = 'source-atop';
       c.strokeStyle = css(o.dark, 0.5); c.lineCap = 'round';
-      for (const lw of [0.3, 0.2, 0.12]) { c.lineWidth = h * lw; c.beginPath(); c.ellipse(w / 2, h * 0.3, w * 0.44, h * 0.4, 0, 0.16 * PI, 0.84 * PI); c.stroke(); }
+      if (o.flat) for (const lw of [0.2, 0.13, 0.08]) { c.lineWidth = h * lw; c.beginPath(); c.ellipse(w / 2, h * 0.34, w * 0.4, h * 0.13, 0, 0.04 * PI, 0.96 * PI); c.stroke(); }   // a thinner, straighter band that joins its neighbours into a long line
+      else for (const lw of [0.3, 0.2, 0.12]) { c.lineWidth = h * lw; c.beginPath(); c.ellipse(w / 2, h * 0.3, w * 0.44, h * 0.4, 0, 0.16 * PI, 0.84 * PI); c.stroke(); }
       barbs(c, w, h, r, col, 4, 0.08);
     },
     scallop(c, w, h, col, o, r) {                                // a dark feather with a pale edge: the wing pattern
@@ -97,7 +98,7 @@ const Bird = (() => {
     palette = {body, face, dark, tail};
     const defs = [
       ['body', 'feather', 44, 58, body, {}], ['belly', 'feather', 44, 58, mixc(body, [255, 255, 255], 0.1), {}],
-      ['face', 'feather', 30, 38, face, {soft: 1}], ['bodyU', 'disc', 24, 24, mixc(body, [0, 0, 0], 0.04), {hard: 0.25}], ['faceU', 'disc', 24, 24, face, {hard: 0.25}], ['bar', 'bar', 30, 34, face, {dark}], ['mantle', 'bar', 40, 46, mixc(face, body, 0.15), {dark}],
+      ['face', 'feather', 30, 38, face, {soft: 1}], ['bodyU', 'disc', 24, 24, mixc(body, [0, 0, 0], 0.04), {hard: 0.25}], ['faceU', 'disc', 24, 24, face, {hard: 0.25}], ['bar', 'bar', 30, 34, face, {dark}], ['hbar', 'bar', 30, 34, face, {dark, flat: 1}], ['mantle', 'bar', 40, 46, mixc(face, body, 0.15), {dark}],
       ['scallop', 'scallop', 40, 50, mixc(face, body, 0.12), {dark}], ['cheek', 'feather', 30, 38, mixc(face, hex(s.cheek), 0.94), {}],
       ['spot', 'disc', 20, 20, mixc(face, hex(s.marks), Math.min(1, amt * 1.2)), {hard: 0.5}],
       ['cere', 'disc', 20, 20, hex(s.cere), {hard: 0.5}], ['beak', 'disc', 20, 20, [208, 186, 98], {hard: 0.35}], ['beak2', 'disc', 20, 20, [186, 160, 88], {hard: 0.35}],
@@ -201,14 +202,19 @@ const Bird = (() => {
     // neck: a sleeve of feathers from inside the back of the head down to the shoulders. Its top matches the head and its foot
     // matches the back, so the nape is one line from crown to back; it follows the head part-way when the head moves.
     const NK = (y, lo) => { const q = clamp((106 - y) / 36, 0, 1), cz = lerp(13.2, 0.8, q), xr = lerp(11.5, 20.6, Math.pow(q, 0.75)), zb = lerp(12.5, 19.4, Math.pow(q, 0.75)), zf = lerp(9, 14, q), cl = Math.cos(lo); return [Math.sin(lo) * xr, y, cz + cl * (cl > 0 ? zf : zb)]; };
+    // its rows slope: higher at the back than at the sides, steeply near the head and levelling out at the shoulders, so the head's
+    // diagonal barring carries on down the neck and turns level only where it meets the back
+    const SP = (y0, lo) => { const s = 0.85 * Math.pow(clamp((y0 - 70) / 36, 0, 1), 1.2); return NK(y0 - s * (NK(y0, lo)[2] - 8), lo); };
     for (let y = 106, row = 0; y > 70; row++) {
-      const q = (106 - y) / 36, small = q < 0.5, l = lerp(4.2, 5.4, Math.min(1, q * 2)) + (small ? 0 : 6 * (q - 0.5)), w = lerp(6, 6.8, Math.min(1, q * 2)) + (small ? 0 : 3 * (q - 0.5)), n = Math.round(2 * PI * lerp(17, 22, q) / (w * 0.46)), o0 = r() * 6.28;
+      const q0 = (106 - y) / 36, small = q0 < 0.5, l = lerp(4.2, 5.4, Math.min(1, q0 * 2)) + (small ? 0 : 6 * (q0 - 0.5)), w = lerp(6, 6.8, Math.min(1, q0 * 2)) + (small ? 0 : 3 * (q0 - 0.5)), n = Math.round(2 * PI * lerp(17, 22, q0) / (w * 0.46)), o0 = r() * 6.28;
       for (let i = 0; i < n; i++) {
-        const lo = o0 + (i + (r() - 0.5) * 0.3) * 2 * PI / n, cl = Math.cos(lo), yy = y + (r() - 0.5) * 0.5, P0 = NK(yy, lo), P1 = NK(yy - 1, lo), Pa = NK(yy, lo + 0.04), t = norm(sub(P1, P0));
-        let nn = norm(cross(sub(Pa, P0), t)); if (nn[0] * P0[0] + nn[2] * (P0[2] - 8) < 0) nn = [-nn[0], -nn[1], -nn[2]];
+        const lo = o0 + (i + (r() - 0.5) * 0.3) * 2 * PI / n, cl = Math.cos(lo), y0 = y + (r() - 0.5) * 0.2, P0 = SP(y0, lo), yy = P0[1]; if (yy > 108) continue;
+        const q = clamp((106 - yy) / 36, 0, 1), rw = norm(sub(SP(y0, lo + 0.04), P0)), dn = sub(SP(y0 - 1, lo), P0), dr = dn[0] * rw[0] + dn[1] * rw[1] + dn[2] * rw[2], t = norm([dn[0] - dr * rw[0], dn[1] - dr * rw[1], dn[2] - dr * rw[2]]);
+        let nn = norm(cross(rw, t)); if (nn[0] * P0[0] + nn[2] * (P0[2] - 8) < 0) nn = [-nn[0], -nn[1], -nn[2]];
         const edge = lerp(0.55, -0.15, sstep(0.42, 0.95, q)) + 0.06 * noise(yy * 0.9, 5);                       // the blue of the breast rises in a wedge toward the cheek
-        const nm = cl > edge ? 'body' : r() > (q - 0.28) * 1.9 ? 'bar' : 'scallop';
-        add(BONE.neck, {p: P0, n: nn, t}, nm === 'scallop' ? w * 1.05 : w, nm === 'scallop' ? l * 1.25 : l, nm, {lift: 0.08, fl: 0.8, bias: nm === 'body' ? -1 : 0, sk: sstep(70, 102, yy)});
+        const nm = cl > edge ? 'body' : r() > (q - 0.6) * 2.6 ? (q < 0.8 ? 'hbar' : 'bar') : 'scallop';
+        add(BONE.neck, {p: P0, n: nn, t}, nm === 'scallop' ? w * 1.05 : w, nm === 'scallop' ? l * 1.25 : l, nm, {lift: nm === 'hbar' ? 0.03 : 0.08, fl: nm === 'hbar' ? 0.45 : 0.8, thin: nm === 'hbar' ? 1 : 0, anchor: nm === 'hbar' ? 0.36 : 0.22, bias: nm === 'body' ? -1 : 0, sk: sstep(70, 102, yy)});
+        if (nm === 'hbar' && i % 2 === 0) add(BONE.neck, {p: [P0[0] - nn[0] * 1.3, P0[1] - nn[1] * 1.3, P0[2] - nn[2] * 1.3], n: nn, t}, 8, 8, 'faceU', {kind: 1, anchor: 0.5, lift: 0, fl: 0.7, bias: -2.5, sk: sstep(70, 102, yy)});   // a pale underlayer, so the stretched neck never shows through
       }
       y -= l * 0.42;
     }
@@ -238,15 +244,15 @@ const Bird = (() => {
     for (let t2 = 16 * RAD, row = 0; t2 < 177 * RAD; row++) {
       const l0 = 3.7, n = Math.max(6, Math.round(2 * PI * Math.sin(t2) * 17.2 / (l0 * 0.5))), o0 = r() * 6.28;
       for (let i = 0; i < n; i++) {
-        const s2 = o0 + (i + (r() - 0.5) * 0.2) * 2 * PI / n, tj = t2 + (r() - 0.5) * 0.008 + 0.028 * noise(s2 * 4.3 + row * 1.7, row * 0.37), [th, ps] = tilted(tj, s2), deg = th / RAD, cp = Math.cos(ps);
+        const s2 = o0 + (i + (r() - 0.5) * 0.2) * 2 * PI / n, tj = t2 + (r() - 0.5) * 0.004 + 0.022 * noise(s2 * 3.1 + row * 1.7, row * 0.37), [th, ps] = tilted(tj, s2), deg = th / RAD, cp = Math.cos(ps);
         const lim = 60 + 40 * Math.pow(Math.max(0, cp), 1.6) + 85 * Math.pow(Math.max(0, -cp), 2) + noise(ps * 7, 3) * 2.5;
         if (deg <= lim || cp < -0.8) continue;
         const ap = Math.abs(((ps % (2 * PI)) + 3 * PI) % (2 * PI) - PI) / RAD; if (Math.hypot((deg - 62) / 9, (ap - 124) * Math.sin(th) / 13) < 1 && deg < lim + 4) continue;
         const f = headFrame(th, ps, 0); if (f.p[1] < -18.5 && f.p[2] < 3) continue;
-        if (f.p[2] < 3 && r() < 0.85 * sstep(-9, -18.5, f.p[1])) continue;      // the hood thins out into the neck feathers rather than ending at an edge
+        if (f.p[2] < 3 && r() < 0.5 * sstep(-13, -18.5, f.p[1])) continue;      // the hood thins out into the neck feathers rather than ending at an edge
         const a = tilted(tj - 0.03, s2), b = tilted(tj + 0.03, s2), d = sub(headPt(b[0], b[1], 0), headPt(a[0], a[1], 0)), dn = d[0] * f.n[0] + d[1] * f.n[1] + d[2] * f.n[2];
         f.t = norm([d[0] - dn * f.n[0], d[1] - dn * f.n[1], d[2] - dn * f.n[2]]);
-        add(1, f, l0 * 1.5, l0 * 0.95, r() < 0.04 ? 'face' : 'bar', {lift: 0.07, fl: 0.75});
+        add(1, f, l0 * 1.6, l0 * 0.95, r() < 0.03 ? 'face' : 'hbar', {lift: 0.03, fl: 0.45, thin: 1, anchor: 0.36});
       }
       t2 += l0 * 0.43 / 17.2;
     }
@@ -259,10 +265,10 @@ const Bird = (() => {
       const f = headFrame(dth * RAD, PI + sgn * dp * RAD, 1.2); add(1, f, 5.6, 6, 'spot', {kind: 1, anchor: 0.5, lift: 0, fl: 0.6, bias: 1.2, a: clamp(spec.markAmt * 4, 0, 1), th: 1});
     }
     for (const sgn of [1, -1]) { const e = headFrame(57 * RAD, sgn * 72 * RAD, 0.2); add(1, e, 1, 1, 'spot', {kind: 2, bias: 2.5, lift: 0, fl: 0.4, side: sgn}); }
-    add(1, {p: [0, -5, 18], n: [0, 0, 1], t: [0, -1, 0]}, 1, 1, 'spot', {kind: 3, bias: 7, lift: 0, fl: 0, two: 1});     // the beak, drawn as one smooth piece
+    add(1, {p: [0, -5, 16.5], n: [0, 0, 1], t: [0, -1, 0]}, 1, 1, 'spot', {kind: 3, bias: 7, lift: 0, fl: 0, two: 1});     // the beak, drawn as one smooth piece
     // the back of the head is skin, not a shell: feathers low on the nape follow the head only part-way, so the neck bends and stretches
     for (const f of list) if (f.bone === 1 && (f.kind === 0 || f.m === MATS.faceU)) {
-      const w = lerp(1, sstep(74, 102, f.y * HS + HC[1]), sstep(3, -7, f.z));
+      const pale = f.m === MATS.face || f.m === MATS.faceU || f.m === MATS.cheek, w = lerp(1, sstep(74, 102, f.y * HS + HC[1]), pale ? sstep(-3, -10, f.z) : sstep(3, -7, f.z));   // the face itself stays in one piece
       if (w < 0.995) { f.x = f.x * HS + HC[0]; f.y = f.y * HS + HC[1]; f.z = f.z * HS + HC[2]; f.w *= HS; f.l *= HS; f.sk = w; f.skh = 1; }
     }
     for (const f of list) if ((f.bone === 1 || f.bone === 2) && !f.skh) { f.x *= HS; f.y *= HS; f.z *= HS; f.w *= HS; f.l *= HS; }
@@ -413,7 +419,7 @@ const Bird = (() => {
       } else { px = f.x + f.nx * dsp; py = f.y + f.ny * dsp + (f.up ? jawOpen * 0.5 : 0); pz = f.z + f.nz * dsp; }
       const cl = Math.cos(lift), sl = Math.sin(lift); tx = tx * cl + fnx * sl; ty = ty * cl + fny * sl; tz = tz * cl + fnz * sl;
       const nz = m[6] * fnx + m[7] * fny + m[8] * fnz, both = f.two || w > 0.15;
-      if (!both && nz < -0.32) continue;
+      if (!both && nz < (f.thin ? 0.1 : -0.32)) continue;       // fine barred feathers seen edge-on at the outline are left out, so their bars do not stick out as ticks
       const nx = m[0] * fnx + m[1] * fny + m[2] * fnz, ny = m[3] * fnx + m[4] * fny + m[5] * fnz;
       const X = b.t[0] + s * (m[0] * px + m[1] * py + m[2] * pz), Y = b.t[1] + s * (m[3] * px + m[4] * py + m[5] * pz), Z = b.t[2] + s * (m[6] * px + m[7] * py + m[8] * pz);
       const TX = m[0] * tx + m[1] * ty + m[2] * tz, TY = m[3] * tx + m[4] * ty + m[5] * tz, TZ = m[6] * tx + m[7] * ty + m[8] * tz;
@@ -438,7 +444,7 @@ const Bird = (() => {
         const tl = Math.hypot(tx, ty), bl = Math.hypot(bx, by), mn = 0.45;
         if (tl < mn) { if (tl < 0.01) { tx = 0; ty = mn; } else { tx *= mn / tl; ty *= mn / tl; } } if (bl < mn) { if (bl < 0.01) { bx = mn; by = 0; } else { bx *= mn / bl; by *= mn / bl; } }
       } else {
-        const tl = Math.hypot(tx, ty), bl = Math.hypot(bx, by), mt = f.two ? 0.12 : 0.42, mb = f.two ? 0.5 : 0.55;
+        const tl = Math.hypot(tx, ty), bl = Math.hypot(bx, by), mt = f.two ? 0.12 : f.thin ? 0.16 : 0.42, mb = f.two ? 0.5 : f.thin ? 0.14 : 0.55;
         if (tl < mt) { if (tl < 0.01) { tx = 0; ty = -mt; } else { tx *= mt / tl; ty *= mt / tl; } } if (bl < mb) { if (bl < 0.01) { bx = mb; by = 0; } else { bx *= mb / bl; by *= mb / bl; } }
       }
       if (f.a < 1 || f.mouth) g.globalAlpha = f.mouth ? clamp(ch.jaw.x * 3, 0, 1) : f.a;
@@ -476,18 +482,18 @@ const Bird = (() => {
     const out = [], bz = (u, a, b, c) => (1 - u) * (1 - u) * a + 2 * u * (1 - u) * b + u * u * c;
     function grid(bone, col, nu, nv, fn) { const v = []; for (let i = 0; i <= nu; i++) for (let j = 0; j <= nv; j++) v.push(fn(i / nu, j / nv)); out.push({bone, col, nu, nv, v, w: new Float32Array(v.length * 4)}); }
     grid(1, [226, 200, 92], 26, 22, (u, q) => {                 // upper mandible: hooked, wide under the cere, coming to a point
-      const cy = bz(u, -2.4, -6, -12.6), cz = bz(u, 16.6, 21.8, 18.6), T = norm([0, bz(u + 0.01, -2.4, -6, -12.6) - cy, bz(u + 0.01, 16.6, 21.8, 18.6) - cz]), N = [0, T[2], -T[1]];
-      const tipR = Math.sqrt(Math.min(1, (1 - u) * 5)), w = 5.5 * Math.pow(1 - u, 0.5) * tipR + 0.05, d = 4.5 * (1 - 0.62 * u) * tipR + 0.05, al = (-118 + 236 * q) * RAD, sa = Math.sin(al), ca = Math.cos(al);
+      const cy = bz(u, -2.4, -6, -12.4), cz = bz(u, 15.6, 19.4, 16.5), T = norm([0, bz(u + 0.01, -2.4, -6, -12.4) - cy, bz(u + 0.01, 15.6, 19.4, 16.5) - cz]), N = [0, T[2], -T[1]];
+      const tipR = Math.sqrt(Math.min(1, (1 - u) * 5)), w = 5.5 * Math.pow(1 - u, 0.5) * tipR + 0.05, d = 4.1 * (1 - 0.62 * u) * tipR + 0.05, al = (-118 + 236 * q) * RAD, sa = Math.sin(al), ca = Math.cos(al);
       return [w * sa, cy + N[1] * d * ca, cz + N[2] * d * ca, ...norm([sa / w, N[1] * ca / d + T[1] * 0.3 * u, N[2] * ca / d + T[2] * 0.3 * u])];
     });
     grid(2, [206, 180, 90], 12, 18, (u, q) => {                   // lower mandible: a small cup tucked under the hook
       const la = (-88 + 150 * u) * RAD, lo = (-92 + 184 * q) * RAD, d = [Math.sin(lo) * Math.cos(la), Math.sin(la), Math.cos(lo) * Math.cos(la)];
-      return [d[0] * 2.2, -9.5 + d[1] * 1.5, 16.5 + d[2] * 1.8, ...norm([d[0] / 4.6, d[1] / 3.6, d[2] / 3.6])];
+      return [d[0] * 2.2, -9.4 + d[1] * 1.5, 14.6 + d[2] * 1.8, ...norm([d[0] / 4.6, d[1] / 3.6, d[2] / 3.6])];
     });
     grid(1, null, 14, 28, (u, q) => {                            // cere: one low smooth band across the top of the beak, dipping a little in the middle
       const la = (-75 + 165 * u) * RAD, lo = (-105 + 210 * q) * RAD, d = [Math.sin(lo) * Math.cos(la), Math.sin(la), Math.cos(lo) * Math.cos(la)];
       const x = d[0] * 6.6, dip = 1 - 0.2 * Math.exp(-x * x / 3) * Math.max(0, d[1]);
-      return [x, 1.9 + d[1] * 4 * dip, 15.3 + d[2] * 2.2 * (1 - 0.07 * Math.exp(-x * x / 3)), ...norm([d[0] / 6.6, d[1] / 2.5, d[2] / 2.7])];
+      return [x, 1.9 + d[1] * 4 * dip, 14.7 + d[2] * 2.2 * (1 - 0.07 * Math.exp(-x * x / 3)), ...norm([d[0] / 6.6, d[1] / 2.5, d[2] / 2.7])];
     });
     return out;
   })();
@@ -513,14 +519,14 @@ const Bird = (() => {
     quads.sort((p, q) => p.z - q.z);
     g.setTransform(1, 0, 0, 1, 0, 0); g.lineJoin = 'round';
     if (ch.jaw.x > 0.05) {                                       // the dark of the open mouth, between the two halves
-      const m = M[1].m, t = M[1].t, j = M[2], p0 = [0, -10.6 * HS, 16.4 * HS], q0 = [0, -11 * HS, 16.6 * HS];
+      const m = M[1].m, t = M[1].t, j = M[2], p0 = [0, -10.5 * HS, 14.6 * HS], q0 = [0, -10.9 * HS, 14.8 * HS];
       const ax = cx + (t[0] + s * (m[0] * p0[0] + m[1] * p0[1] + m[2] * p0[2])) * sc, ay = cy - (t[1] + s * (m[3] * p0[0] + m[4] * p0[1] + m[5] * p0[2])) * sc, bx = cx + (j.t[0] + s * (j.m[0] * q0[0] + j.m[1] * q0[1] + j.m[2] * q0[2])) * sc, by = cy - (j.t[1] + s * (j.m[3] * q0[0] + j.m[4] * q0[1] + j.m[5] * q0[2])) * sc;
       g.strokeStyle = 'rgba(52,26,28,' + clamp(ch.jaw.x * 2.5, 0, 0.95).toFixed(3) + ')'; g.lineCap = 'round'; g.lineWidth = 3 * HS * ss; g.beginPath(); g.moveTo(ax, ay); g.lineTo(bx, by); g.stroke();
     }
     g.lineWidth = Math.max(0.5, 0.1 * ss);
     for (const q of quads) { const w = q.w; g.fillStyle = g.strokeStyle = q.col; g.beginPath(); g.moveTo(w[q.a * 4], w[q.a * 4 + 1]); g.lineTo(w[q.b * 4], w[q.b * 4 + 1]); g.lineTo(w[q.c * 4], w[q.c * 4 + 1]); g.lineTo(w[q.d * 4], w[q.d * 4 + 1]); g.closePath(); g.fill(); g.stroke(); }
     for (const sg of [1, -1]) {                                  // nostrils
-      const m = M[1].m, t = M[1].t, p = [sg * 2.7 * HS, 2.1 * HS, 17.7 * HS], nz = m[6] * sg * 0.25 + m[7] * 0.1 + m[8] * 0.96; if (nz < 0.25) continue;
+      const m = M[1].m, t = M[1].t, p = [sg * 2.7 * HS, 2.1 * HS, 17.1 * HS], nz = m[6] * sg * 0.25 + m[7] * 0.1 + m[8] * 0.96; if (nz < 0.25) continue;
       const X = cx + (t[0] + s * (m[0] * p[0] + m[1] * p[1] + m[2] * p[2])) * sc, Y = cy - (t[1] + s * (m[3] * p[0] + m[4] * p[1] + m[5] * p[2])) * sc, r = 0.42 * HS * ss;
       const gr = g.createRadialGradient(X, Y, 0, X, Y, r); gr.addColorStop(0, 'rgba(46,28,24,' + (0.75 * nz).toFixed(2) + ')'); gr.addColorStop(1, 'rgba(46,28,24,0)'); g.fillStyle = gr; g.beginPath(); g.arc(X, Y, r, 0, 7); g.fill();
     }
@@ -577,18 +583,17 @@ const Bird = (() => {
       for (const [w, col, dx] of [[4.6, FOOT[2], 0.25], [3.9, FOOT[0], 0], [1.5, FOOT[1], -0.6]]) { g.strokeStyle = col; g.lineWidth = w * s * sc; g.beginPath(); g.moveTo(ax + dx * s * sc, ay); g.quadraticCurveTo((ax + fx) / 2 + sd * 0.8 * s * sc + dx * s * sc, (ay + fy) / 2, fx + dx * s * sc, fy); g.stroke(); }
     }
   }
-  function toe(x0, y0, ang, len, curl, w) {                    // one toe: three padded joints bending over the round of the branch, then a claw
-    const dx = Math.sin(ang), dy = Math.cos(ang); let x = x0, y = y0;
-    const segs = [[0.4, 1], [0.34, 0.9], [0.26, 0.78]];
-    g.fillStyle = 'rgba(30,18,14,.26)'; g.beginPath(); g.ellipse(x0 + dx * len * 0.5 + 0.7, y0 + dy * len * 0.5 + 0.8, w * 0.62, len * 0.56, -ang, 0, 7); g.fill();
-    for (let k = 0; k < 3; k++) {
-      const L = len * segs[k][0] * (k === 2 ? 0.75 * curl : 1), ww = w * segs[k][1], mx = x + dx * L / 2, my = y + dy * L / 2;
-      const gr = g.createRadialGradient(mx - ww * 0.25, my - L * 0.15, 0, mx, my, Math.max(ww, L) * 0.75); gr.addColorStop(0, FOOT[1]); gr.addColorStop(0.55, FOOT[0]); gr.addColorStop(1, FOOT[2]);
-      g.fillStyle = gr; g.beginPath(); g.ellipse(mx, my, ww * 0.54, L * 0.9, -ang, 0, 7); g.fill();
-      x += dx * L; y += dy * L;
+  function toe(x0, y0, ang, len, curl, w) {                    // one toe wrapped round the branch: padded joints going over the top, down the front and under, where the claw tucks out of sight
+    const tn = Math.tan(ang), top = y0, R = RB - top / 2, PH = [-18, 34, 82, 128, 168 * (0.55 + 0.45 * curl)], Y = a => top + R * (1 - Math.cos(a * RAD)) * (a < 0 ? -1 : 1);
+    g.fillStyle = 'rgba(30,18,14,.24)'; g.beginPath(); g.ellipse(x0 + tn * RB + 0.9, RB + 0.6, w * 0.66, RB * 0.98, -ang, 0, 7); g.fill();
+    for (let k = 0; k < 4; k++) {
+      const ya = Y(PH[k]), yb = Y(PH[k + 1]), my = (ya + yb) / 2, mx = x0 + tn * (my - y0), L = Math.max(1.1, yb - ya), ww = w * [1, 0.96, 0.9, 0.8][k], sh = sstep(70, 170, (PH[k] + PH[k + 1]) / 2) * 0.5;
+      const gr = g.createRadialGradient(mx - ww * 0.25, my - L * 0.18, 0, mx, my, Math.max(ww, L) * 0.8), mixh = (c, t) => 'rgb(' + mixc(hex(c), [58, 40, 40], t).map(Math.round).join(',') + ')';
+      gr.addColorStop(0, mixh(FOOT[1], sh)); gr.addColorStop(0.55, mixh(FOOT[0], sh)); gr.addColorStop(1, mixh(FOOT[2], sh * 0.8));
+      g.fillStyle = gr; g.beginPath(); g.ellipse(mx, my, ww * 0.54, L * 0.68 + 0.6, -ang, 0, 7); g.fill();
     }
-    const nx = dy, ny = -dx, c = 2 * curl;                    // claw: a short dark hook curling under
-    g.fillStyle = FOOT[3]; g.beginPath(); g.moveTo(x - nx * 0.5 - dx * 0.5, y - ny * 0.5 - dy * 0.5); g.quadraticCurveTo(x + dx * c * 0.6 - nx * 0.35, y + dy * c * 0.6 - ny * 0.35, x + dx * c - nx * 0.2 * Math.sign(ang || 1), y + dy * c); g.quadraticCurveTo(x + dx * c * 0.5 + nx * 0.45, y + dy * c * 0.5 + ny * 0.45, x + nx * 0.5 - dx * 0.5, y + ny * 0.5 - dy * 0.5); g.fill();
+    const ye = Y(PH[4]), xe = x0 + tn * (ye - y0);              // the claw: a dark tip disappearing under the branch
+    g.fillStyle = FOOT[3]; g.beginPath(); g.moveTo(xe - w * 0.3, ye - 0.9); g.quadraticCurveTo(xe, ye + 1.5 * curl, xe + w * 0.3, ye - 0.9); g.quadraticCurveTo(xe, ye - 0.2, xe - w * 0.3, ye - 0.9); g.fill();
   }
   function drawToes() {                                         // the front pair of toes grips over the top of the branch (the back pair is hidden behind it)
     const s = spec.size * sc, an = ch.angle.x * RAD;
@@ -618,7 +623,7 @@ const Bird = (() => {
   function resize() {
     const dpr = Math.min(2, window.devicePixelRatio || 1) * quality, w = Math.round(cv.clientWidth * dpr), h = Math.round(cv.clientHeight * dpr);
     if (w && h && (cv.width !== w || cv.height !== h)) { cv.width = w; cv.height = h; }
-    cw = cv.width; ch_ = cv.height; sc = Math.min(cw / 118, ch_ / 192); cx = cw / 2; cy = ch_ * 0.82;
+    cw = cv.width; ch_ = cv.height; sc = Math.min(cw / 118, ch_ / 192); cx = cw / 2; cy = ch_ * 0.775;
     roam = clamp(cw / sc / 2 - 44, 4, 60);
   }
   function frame(now) {
