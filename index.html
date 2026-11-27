@@ -67,6 +67,8 @@ body.solo .stage .solo-btn{top:max(12px,env(safe-area-inset-top,0px));right:max(
 .picker button i{width:18px;height:18px;border-radius:50%;border:1px solid rgba(0,0,0,.25)}
 .picker button[aria-pressed="true"]{border-color:var(--green);box-shadow:0 0 0 2px var(--green) inset}
 .picker[hidden]{display:none}
+.picklabel{font-size:.86rem;font-weight:700;color:var(--muted);margin:14px 0 6px;letter-spacing:.01em}
+.pickhint{font-size:.86rem;color:var(--muted);margin:0}
 .design{display:grid;gap:12px}
 .swatches{display:grid;grid-template-columns:repeat(auto-fill,minmax(96px,1fr));gap:10px}
 .swatches label{display:grid;gap:4px;font-size:.86rem;color:var(--muted)}
@@ -129,14 +131,25 @@ label.field{display:grid;gap:4px;font-size:.88rem;color:var(--muted)}
       </div>
       <div class="card design">
         <div class="row between"><h2>Choose your Perchy</h2><button class="btn" id="custBtn" aria-expanded="false" aria-controls="custom">Customize</button></div>
-        <div class="picker" id="birdPick" role="group" aria-label="Choose a bird" style="margin-top:0"></div>
+        <h3 class="picklabel">Common varieties</h3>
+        <div class="picker" id="birdPick" role="group" aria-label="Choose a common variety" style="margin-top:0"></div>
+        <h3 class="picklabel">Your birds</h3>
+        <div class="picker" id="myPick" role="group" aria-label="Choose one of your own birds" style="margin-top:0"></div>
+        <p class="pickhint" id="myNone">None yet. Tap Customize, set up a bird, and save it with a name.</p>
+        <h3 class="picklabel">Cere colour (the band above the beak)</h3>
+        <div class="bgchips" id="cereChips">
+          <button type="button" data-c="#5b86d8" style="background:#5b86d8" aria-label="Blue" title="Blue"></button>
+          <button type="button" data-c="#b98f66" style="background:#b98f66" aria-label="Brown" title="Brown"></button>
+          <button type="button" data-c="#d6a391" style="background:#d6a391" aria-label="Pink" title="Pink"></button>
+          <button type="button" data-c="#e8dcd0" style="background:#e8dcd0" aria-label="Pale" title="Pale"></button>
+          <label class="bgpick" title="Any colour">Other<input type="color" id="cerePick" value="#5b86d8" aria-label="Any cere colour"></label>
+        </div>
         <div class="design" id="custom" hidden>
           <div class="swatches">
             <label>Body<input type="color" data-k="body"></label>
             <label>Face<input type="color" data-k="face"></label>
             <label>Markings<input type="color" data-k="marks"></label>
             <label>Cheek patch<input type="color" data-k="cheek"></label>
-            <label>Cere (above beak)<input type="color" data-k="cere"></label>
           </div>
           <div class="sliders">
             <label class="field">Markings: faint to bold<input type="range" data-k="markAmt" min="0" max="1" step="0.02"></label>
@@ -894,7 +907,7 @@ let toastT;
 function toast(msg) { const t = $('#toast'); t.textContent = msg; t.classList.add('show'); clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove('show'), 3200); }
 
 // ---------- saved state (this device only) ----------
-const DEFAULTS = {set: {vol: 50, answer: true, callOut: true, flock: true, quiet: false, show: true, sens: 55, bird: 'sky', angle: 8, lively: 1, bg: '', birds: []}, n: 0, pitch: 3100, answered: 0, fav: {}, day: {key: '', count: 0}};
+const DEFAULTS = {set: {vol: 50, answer: true, callOut: true, flock: true, quiet: false, show: true, sens: 55, bird: 'sky', angle: 8, lively: 1, bg: '', cere: '', birds: []}, n: 0, pitch: 3100, answered: 0, fav: {}, day: {key: '', count: 0}};
 let S = JSON.parse(JSON.stringify(DEFAULTS));
 try { const raw = JSON.parse(localStorage.getItem('perchy.v3') || 'null'); if (raw) { Object.assign(S, raw); S.set = Object.assign({}, DEFAULTS.set, raw.set || {}); } } catch (e) {}
 let saveT;
@@ -1239,21 +1252,31 @@ if ({blue: 1, green: 1, yellow: 1}[st.bird]) st.bird = st.bird === 'blue' ? 'sky
 const allBirds = () => [...Bird.PRESETS, ...st.birds];
 const SPEC_KEYS = ['body', 'face', 'marks', 'cheek', 'cere', 'markAmt', 'size', 'build', 'fluff', 'tailLen'];
 function fillControls(sp) { document.querySelectorAll('#custom [data-k]').forEach(el => { el.value = sp[el.dataset.k]; }); }
+const CERE0 = '#5b86d8';                                        // the cere is its own choice (blue unless you change it); a variety never changes it
+if (!/^#[0-9a-f]{6}$/i.test(st.cere || '')) { const mine = st.birds.find(b => b.id === st.bird); st.cere = mine && mine.cere ? mine.cere : CERE0; }
 function renderBirds() {
-  const box = $('#birdPick'); box.innerHTML = '';
-  for (const b of allBirds()) {
-    const x = document.createElement('button'), i = document.createElement('i'); i.style.background = 'linear-gradient(135deg,' + b.face + ' 0 38%,' + b.body + ' 38%)';
-    x.append(i, b.name); x.setAttribute('aria-pressed', String(b.id === st.bird && !st.edited)); x.onclick = () => chooseBird(b.id); box.append(x);
+  for (const [sel, list] of [['#birdPick', Bird.PRESETS], ['#myPick', st.birds]]) {
+    const box = $(sel); box.innerHTML = '';
+    for (const b of list) {
+      const x = document.createElement('button'), i = document.createElement('i'); i.style.background = 'linear-gradient(135deg,' + b.face + ' 0 38%,' + b.body + ' 38%)';
+      x.append(i, b.name); x.setAttribute('aria-pressed', String(b.id === st.bird && !st.edited)); x.onclick = () => chooseBird(b.id); box.append(x);
+    }
   }
+  $('#myNone').hidden = st.birds.length > 0; $('#myPick').hidden = !st.birds.length;
   const mine = st.birds.some(b => b.id === st.bird); $('#delBird').hidden = !mine;
+  document.querySelectorAll('#cereChips button').forEach(b => b.classList.toggle('on', b.dataset.c.toLowerCase() === st.cere.toLowerCase())); $('#cerePick').value = st.cere;
 }
 function chooseBird(id) {
-  const b = allBirds().find(x => x.id === id) || Bird.PRESETS[0];
+  const b = allBirds().find(x => x.id === id) || Bird.PRESETS[0], own = st.birds.includes(b);
   const cur = st.spec || Bird.getSpec(), keep = {};
-  if (!st.birds.includes(b) && cur) for (const k of ['size', 'build', 'fluff', 'tailLen']) if (cur[k] !== undefined) keep[k] = cur[k];   // a built-in colour changes colours only; size and shape stay as you set them
-  st.bird = b.id; st.spec = Object.assign({}, b, keep); st.edited = false; Bird.setSpec(st.spec); fillControls(Bird.getSpec()); $('#birdName').value = st.birds.includes(b) ? b.name : '';
+  if (!own && cur) for (const k of ['size', 'build', 'fluff', 'tailLen']) if (cur[k] !== undefined) keep[k] = cur[k];   // a variety changes colours only; size and shape stay as you set them
+  if (own && b.cere) st.cere = b.cere;                         // one of your own birds brings the cere it was saved with
+  st.bird = b.id; st.spec = Object.assign({}, b, keep, {cere: st.cere}); st.edited = false; Bird.setSpec(st.spec); fillControls(Bird.getSpec()); $('#birdName').value = own ? b.name : '';
   $('#stage').setAttribute('aria-label', 'Perchy, a ' + b.name.toLowerCase() + ' budgie on a branch'); renderBirds(); save();
 }
+function setCere(c) { st.cere = c; st.spec = Object.assign({}, Bird.getSpec(), st.spec || {}, {cere: c}); Bird.setSpec(st.spec); renderBirds(); save(); }
+document.querySelectorAll('#cereChips button').forEach(b => { b.onclick = () => setCere(b.dataset.c); });
+$('#cerePick').oninput = e => setCere(e.target.value);
 let specT;
 document.querySelectorAll('#custom [data-k]').forEach(el => { el.oninput = () => {
   const k = el.dataset.k; st.spec = Object.assign({}, Bird.getSpec(), st.spec || {}, {[k]: el.type === 'range' ? +el.value : el.value}); if (k === 'body' || k === 'face') st.spec.tail = '';
@@ -1280,7 +1303,8 @@ for (const [label, act] of [['Spread wing', 'spread'], ['Stretch', 'stretch'], [
   };
 }
 
-Bird.init($('#stage'), {getEnv: voiceEnv, spec: st.spec || allBirds().find(b => b.id === st.bird) || Bird.PRESETS[0], angle: st.angle, lively: st.lively});
+if (st.spec) st.spec.cere = st.cere;
+Bird.init($('#stage'), {getEnv: voiceEnv, spec: st.spec || Object.assign({}, allBirds().find(b => b.id === st.bird) || Bird.PRESETS[0], {cere: st.cere}), angle: st.angle, lively: st.lively});
 setBg(st.bg || '');
 fillControls(Bird.getSpec()); renderBirds();
 showBird(st.show); renderTiles(); setStatus();

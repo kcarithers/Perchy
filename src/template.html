@@ -67,6 +67,8 @@ body.solo .stage .solo-btn{top:max(12px,env(safe-area-inset-top,0px));right:max(
 .picker button i{width:18px;height:18px;border-radius:50%;border:1px solid rgba(0,0,0,.25)}
 .picker button[aria-pressed="true"]{border-color:var(--green);box-shadow:0 0 0 2px var(--green) inset}
 .picker[hidden]{display:none}
+.picklabel{font-size:.86rem;font-weight:700;color:var(--muted);margin:14px 0 6px;letter-spacing:.01em}
+.pickhint{font-size:.86rem;color:var(--muted);margin:0}
 .design{display:grid;gap:12px}
 .swatches{display:grid;grid-template-columns:repeat(auto-fill,minmax(96px,1fr));gap:10px}
 .swatches label{display:grid;gap:4px;font-size:.86rem;color:var(--muted)}
@@ -129,14 +131,25 @@ label.field{display:grid;gap:4px;font-size:.88rem;color:var(--muted)}
       </div>
       <div class="card design">
         <div class="row between"><h2>Choose your Perchy</h2><button class="btn" id="custBtn" aria-expanded="false" aria-controls="custom">Customize</button></div>
-        <div class="picker" id="birdPick" role="group" aria-label="Choose a bird" style="margin-top:0"></div>
+        <h3 class="picklabel">Common varieties</h3>
+        <div class="picker" id="birdPick" role="group" aria-label="Choose a common variety" style="margin-top:0"></div>
+        <h3 class="picklabel">Your birds</h3>
+        <div class="picker" id="myPick" role="group" aria-label="Choose one of your own birds" style="margin-top:0"></div>
+        <p class="pickhint" id="myNone">None yet. Tap Customize, set up a bird, and save it with a name.</p>
+        <h3 class="picklabel">Cere colour (the band above the beak)</h3>
+        <div class="bgchips" id="cereChips">
+          <button type="button" data-c="#5b86d8" style="background:#5b86d8" aria-label="Blue" title="Blue"></button>
+          <button type="button" data-c="#b98f66" style="background:#b98f66" aria-label="Brown" title="Brown"></button>
+          <button type="button" data-c="#d6a391" style="background:#d6a391" aria-label="Pink" title="Pink"></button>
+          <button type="button" data-c="#e8dcd0" style="background:#e8dcd0" aria-label="Pale" title="Pale"></button>
+          <label class="bgpick" title="Any colour">Other<input type="color" id="cerePick" value="#5b86d8" aria-label="Any cere colour"></label>
+        </div>
         <div class="design" id="custom" hidden>
           <div class="swatches">
             <label>Body<input type="color" data-k="body"></label>
             <label>Face<input type="color" data-k="face"></label>
             <label>Markings<input type="color" data-k="marks"></label>
             <label>Cheek patch<input type="color" data-k="cheek"></label>
-            <label>Cere (above beak)<input type="color" data-k="cere"></label>
           </div>
           <div class="sliders">
             <label class="field">Markings: faint to bold<input type="range" data-k="markAmt" min="0" max="1" step="0.02"></label>
