@@ -9,7 +9,7 @@ let toastT;
 function toast(msg) { const t = $('#toast'); t.textContent = msg; t.classList.add('show'); clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove('show'), 3200); }
 
 // ---------- saved state (this device only) ----------
-const DEFAULTS = {set: {vol: 50, answer: true, callOut: true, flock: true, quiet: false, show: true, sens: 55, bird: 'sky', angle: 8, lively: 1, bg: '', cere: '', birds: []}, n: 0, pitch: 3100, answered: 0, fav: {}, day: {key: '', count: 0}};
+const DEFAULTS = {set: {vol: 50, answer: true, callOut: true, flock: true, ownVoice: true, quiet: false, show: true, sens: 55, bird: 'sky', angle: 8, lively: 1, bg: '', cere: '', birds: []}, n: 0, pitch: 3100, answered: 0, fav: {}, day: {key: '', count: 0}};
 let S = JSON.parse(JSON.stringify(DEFAULTS));
 try { const raw = JSON.parse(localStorage.getItem('perchy.v3') || 'null'); if (raw) { Object.assign(S, raw); S.set = Object.assign({}, DEFAULTS.set, raw.set || {}); } } catch (e) {}
 let saveT;
@@ -91,10 +91,12 @@ let RUNS = null;
 function warble(o = {}) {
   if (!RUNS) {
     RUNS = [];
-    for (const c of LIB.calls) { const N = c.notes || []; if (N.length < 2) continue;
+    for (const c of LIB.calls) { const N = c.notes || []; if (N.length < (c.kind === 'own' ? 1 : 2)) continue;
       for (let i = 0; i < N.length; i++) for (let j = i + 1; j < N.length; j++) { const a = Math.max(0, N[i][0] - 0.03), b = Math.min(c.dur, N[j][1] + 0.06); if (b - a > 3.2) break; RUNS.push({c, a, b, n: j - i + 1}); } }
   }
-  const ok = RUNS.filter(r => bufs.has(r.c.id)); if (!ok.length) return 0;
+  // with "your bird's own warble" on, Perchy warbles in your bird's voice a little over half the time, otherwise in a wild bird's
+  const own = RUNS.filter(r => bufs.has(r.c.id) && r.c.kind === 'own'), wild = RUNS.filter(r => bufs.has(r.c.id) && r.c.kind !== 'own');
+  const ok = S.set.ownVoice && own.length && (Math.random() < 0.55 || !wild.length) ? own : wild; if (!ok.length) return 0;
   const target = o.pitch || S.pitch, want = o.sec || rand(1.2, 2.4), lvl = o.level == null ? 0.7 : o.level, t0 = ctx.currentTime + 0.03;
   let t = 0, last = null;
   for (let k = 0; k < 3 && t < want - 0.4; k++) {
@@ -354,6 +356,7 @@ $('#sens').value = st.sens; $('#sens').oninput = e => { st.sens = +e.target.valu
 const bind = (id, key, after) => { $(id).checked = st[key]; $(id).onchange = e => { st[key] = e.target.checked; save(); if (after) after(st[key]); }; };
 bind('#answerBack', 'answer'); bind('#callOut', 'callOut', on => { if (on) scheduleCallOut(); });
 bind('#bgFlock', 'flock', on => { if (on) nextFlock = Date.now() + 8000; });
+bind('#ownVoice', 'ownVoice');
 bind('#quietOn', 'quiet', on => { setStatus(); toast(on ? 'Perchy will stay quiet from 8:30 PM to 7 AM' : 'Perchy will make sounds at any hour'); });
 const showBird = on => { $('#hiddenMsg').hidden = on; $('#stage').style.visibility = on ? 'visible' : 'hidden'; Bird.setVisible(on); };
 bind('#showBird', 'show', showBird);
