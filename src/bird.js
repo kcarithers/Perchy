@@ -153,12 +153,7 @@ const Bird = (() => {
   function headFrame(th, ps, off) {
     const p = headPt(th, ps, off), a = sub(headPt(th + 0.03, ps, off), headPt(th - 0.03, ps, off)), b = sub(headPt(th, ps + 0.03, off), headPt(th, ps - 0.03, off));
     let n = norm(cross(a, b)); if (n[0] * p[0] + n[1] * p[1] + n[2] * p[2] < 0) n = [-n[0], -n[1], -n[2]];
-    let t = norm(a);
-    if (p[2] < 2) {                                              // on the back of the head every feather lies pointing down the nape, so the bars run across in one direction and carry on into the neck
-      const dn = -n[1], D = [-dn * n[0], -1 - dn * n[1], -dn * n[2]], dl = Math.hypot(D[0], D[1], D[2]), k = sstep(2, -7, p[2]) * Math.min(1, dl * 2.5);
-      if (dl > 0.05) t = norm([t[0] + (D[0] / dl - t[0]) * k, t[1] + (D[1] / dl - t[1]) * k, t[2] + (D[2] / dl - t[2]) * k]);
-    }
-    return {p, n, t};
+    return {p, n, t: norm(a)};
   }
   const BONE = {body: 0, head: 1, jaw: 2, neck: 3, tail: 4, wingR: 5, wingL: 6};
   function build() {
@@ -227,13 +222,33 @@ const Bird = (() => {
         const f = headFrame(tj, ps, 0); if (f.p[1] < -18.5 && f.p[2] < 3) continue;              // buried in the neck
         if (Math.abs(f.p[0]) < 4.4 && f.p[1] > -10.6 && f.p[1] < -0.5 && f.p[2] > 8) continue;      // the beak's own ground: no feathers across it or in the mouth
         let mat = 'face', l = l0, w = l0 * 0.86;
-        if (deg > lim) { if (cp < -0.8) { mat = 'face'; l = 6; w = 5; } else { mat = r() < 0.05 ? 'face' : 'bar'; w = l0 * 1.4; l = l0 * 0.92; } }
+        if (deg > lim) { if (cp < -0.8) { mat = 'face'; l = 6; w = 5; } else mat = 'bar'; }
         const ap = Math.abs(((ps % (2 * PI)) + 3 * PI) % (2 * PI) - PI) / RAD;                 // 0 = up ... 180 = down
         const cd = Math.hypot((deg - 62) / 9, (ap - 124) * Math.sin(tj) / 13);
         if (cd < 1 && deg < lim + 4) { mat = 'cheek'; l = 5.2; w = 4; }
+        if (mat === 'bar') continue;                                 // the barred feathers are laid in their own rows below
         add(1, f, w, l, mat, {lift: mat === 'body' ? 0.12 : 0.07, fl: 0.75, th: mat === 'face' && cp < -0.5 && deg > 45 ? 1 : 0, ao: cp < -0.75 && deg > 64 ? 0.92 : 1});
       }
       th += l0 * 0.43 / 17.2;
+    }
+    // the barring: rows of feathers ringing a line that runs from the forehead back and down through the neck, so the bars cross the crown
+    // and sweep diagonally down and back over the side of the head, as on a real budgie, and flatten out toward the nape
+    const TILT = 32 * RAD, P2 = [0, Math.sin(TILT), Math.cos(TILT)], U2 = [0, Math.cos(TILT), -Math.sin(TILT)];
+    const tilted = (t2, s2) => { const ct = Math.cos(t2), st = Math.sin(t2), d = [st * Math.sin(s2), P2[1] * ct + st * Math.cos(s2) * U2[1], P2[2] * ct + st * Math.cos(s2) * U2[2]]; return [Math.acos(clamp(-0.12 * d[1] + 0.9928 * d[2], -1, 1)), Math.atan2(d[0], 0.9928 * d[1] + 0.12 * d[2])]; };
+    for (let t2 = 16 * RAD, row = 0; t2 < 177 * RAD; row++) {
+      const l0 = 3.7, n = Math.max(6, Math.round(2 * PI * Math.sin(t2) * 17.2 / (l0 * 0.5))), o0 = r() * 6.28;
+      for (let i = 0; i < n; i++) {
+        const s2 = o0 + (i + (r() - 0.5) * 0.2) * 2 * PI / n, tj = t2 + (r() - 0.5) * 0.008 + 0.028 * noise(s2 * 4.3 + row * 1.7, row * 0.37), [th, ps] = tilted(tj, s2), deg = th / RAD, cp = Math.cos(ps);
+        const lim = 60 + 40 * Math.pow(Math.max(0, cp), 1.6) + 85 * Math.pow(Math.max(0, -cp), 2) + noise(ps * 7, 3) * 2.5;
+        if (deg <= lim || cp < -0.8) continue;
+        const ap = Math.abs(((ps % (2 * PI)) + 3 * PI) % (2 * PI) - PI) / RAD; if (Math.hypot((deg - 62) / 9, (ap - 124) * Math.sin(th) / 13) < 1 && deg < lim + 4) continue;
+        const f = headFrame(th, ps, 0); if (f.p[1] < -18.5 && f.p[2] < 3) continue;
+        if (f.p[2] < 3 && r() < 0.85 * sstep(-9, -18.5, f.p[1])) continue;      // the hood thins out into the neck feathers rather than ending at an edge
+        const a = tilted(tj - 0.03, s2), b = tilted(tj + 0.03, s2), d = sub(headPt(b[0], b[1], 0), headPt(a[0], a[1], 0)), dn = d[0] * f.n[0] + d[1] * f.n[1] + d[2] * f.n[2];
+        f.t = norm([d[0] - dn * f.n[0], d[1] - dn * f.n[1], d[2] - dn * f.n[2]]);
+        add(1, f, l0 * 1.5, l0 * 0.95, r() < 0.04 ? 'face' : 'bar', {lift: 0.07, fl: 0.75});
+      }
+      t2 += l0 * 0.43 / 17.2;
     }
     for (let th = 14 * RAD; th < 176 * RAD; th += 0.2) for (let i = 0, n = Math.max(5, Math.round(2 * PI * Math.sin(th) * 17 / 3.6)); i < n; i++) {
       const ps = (i + 0.5 * (Math.round(th * 5) % 2)) * 2 * PI / n, cp = Math.cos(ps), f = headFrame(th, ps, -1.3);
