@@ -96,25 +96,126 @@ function warble(o = {}) {
   }
   // with "your bird's own warble" on, Perchy warbles in your bird's voice a little over half the time, otherwise in a wild bird's
   const own = RUNS.filter(r => bufs.has(r.c.id) && r.c.kind === 'own'), wild = RUNS.filter(r => bufs.has(r.c.id) && r.c.kind !== 'own');
-  const ok = S.set.ownVoice && own.length && (Math.random() < 0.55 || !wild.length) ? own : wild; if (!ok.length) return 0;
+  if (!own.length && !wild.length) return 0;
+  const useOwn = S.set.ownVoice && own.length > 0, lean = rand(0.35, 0.75);   // how much of this warble is in your bird's voice
   const target = o.pitch || S.pitch, want = o.sec || rand(1.2, 2.4), lvl = o.level == null ? 0.7 : o.level, t0 = ctx.currentTime + 0.03;
   let t = 0, last = null;
   for (let k = 0; k < 3 && t < want - 0.4; k++) {
     // a run that fits the time left and is near the wanted pitch, from a different recording than the last one
+    const ok = useOwn && (Math.random() < lean || !wild.length) ? own : wild.length ? wild : own;
     const left = want - t, fit = ok.filter(r => r.c !== (last && last.c) && r.b - r.a <= left + 0.5 && r.b - r.a >= Math.min(0.6, left));
     const pool = fit.length ? fit : ok; let r = pick(pool);
     for (let i = 0; i < 10 && Math.abs(Math.log(r.c.pitch / target)) > 0.08; i++) r = pick(pool);
     last = r;
-    const rate = clamp(target / r.c.pitch, 0.96, 1.04), len = r.b - r.a, d = len / rate, s0 = t0 + t, lv = lvl * rand(0.8, 1);
+    // a little different every time: wild notes lean toward your bird's pitch, your bird's own song sometimes drops a touch lower and slower
+    const rate = r.c.kind === 'own' ? (Math.random() < 0.3 ? rand(0.9, 0.96) : rand(0.97, 1.04)) : clamp(target / r.c.pitch, 0.95, 1.05) * rand(0.98, 1.02), len = r.b - r.a, d = len / rate, s0 = t0 + t, lv = lvl * rand(0.8, 1);
     const src = ctx.createBufferSource(); src.buffer = bufs.get(r.c.id); src.playbackRate.value = rate;
     const g = ctx.createGain(); g.gain.setValueAtTime(0, s0); g.gain.linearRampToValueAtTime(lv, s0 + 0.03); g.gain.setValueAtTime(lv, s0 + d - 0.06); g.gain.linearRampToValueAtTime(0, s0 + d);
     src.connect(g); g.connect(voice); src.start(s0, r.a, len);
     t += d + (Math.random() < 0.6 ? rand(-0.04, 0.12) : rand(0.25, 0.5));   // mostly runs straight on, sometimes a short breath
   }
+  // now and then a budgie slips a word it has picked up into its warble
+  if (o.words !== false && PHRASES.length && Math.random() < 0.22) t += sayPhrase(null, {at: t0 + t + rand(0.05, 0.3) - ctx.currentTime, level: lvl * 1.1}) + 0.3;
   markOutput(t * 1000 + 80); lastSoundEnd = Date.now() + t * 1000;
   return t;
 }
 const isWarble = f => f.dur > 1.1 || f.syl >= 4;
+
+// ---------- your phrases ----------
+// Budgies copy words in a voice of their own: high, quick and a little breathy and raspy. Perchy records you saying a phrase
+// and turns it into that: it plays your recording faster (which also raises it), drops the deep chest part of the voice,
+// and adds a breathy layer rebuilt from noise shaped by your voice, band by band.
+// Everything stays on this device.
+let PHRASES = [];   // {id, text, buf}
+const DB = {db: null, open() { return this.db || (this.db = new Promise(res => { try { const r = indexedDB.open('perchy', 1); r.onupgradeneeded = () => r.result.createObjectStore('phrases', {keyPath: 'id'}); r.onsuccess = () => res(r.result); r.onerror = () => res(null); } catch (e) { res(null); } })); },
+  async all() { const db = await this.open(); if (!db) return []; return new Promise(res => { const q = db.transaction('phrases').objectStore('phrases').getAll(); q.onsuccess = () => res(q.result || []); q.onerror = () => res([]); }); },
+  async put(v) { const db = await this.open(); if (db) db.transaction('phrases', 'readwrite').objectStore('phrases').put(v); },
+  async del(id) { const db = await this.open(); if (db) db.transaction('phrases', 'readwrite').objectStore('phrases').delete(id); }};
+async function budgify(buf) {
+  const sr = 44100, d = buf.getChannelData(0);
+  let pk = 0; for (let i = 0; i < d.length; i++) pk = Math.max(pk, Math.abs(d[i]));
+  let a = 0, b = d.length - 1; const thr = pk * 0.08; while (a < b && Math.abs(d[a]) < thr) a++; while (b > a && Math.abs(d[b]) < thr) b--;
+  a = Math.max(0, a - Math.round(buf.sampleRate * 0.03)); b = Math.min(d.length, b + Math.round(buf.sampleRate * 0.08));
+  const cut = new AudioBuffer({length: Math.max(1, b - a), sampleRate: buf.sampleRate, numberOfChannels: 1}); cut.copyToChannel(d.slice(a, b), 0);
+  const speed = 1.7, dur = cut.duration / speed + 0.15, oc = new OfflineAudioContext(1, Math.ceil(dur * sr), sr);
+  const src = oc.createBufferSource(); src.buffer = cut; src.playbackRate.value = speed;
+  const nb = oc.createBuffer(1, Math.ceil(dur * sr), sr), nd = nb.getChannelData(0); for (let i = 0; i < nd.length; i++) nd[i] = Math.random() * 2 - 1;
+  const noise = oc.createBufferSource(); noise.buffer = nb;
+  const buzz = oc.createOscillator(); buzz.type = 'sawtooth'; buzz.frequency.value = 610;
+  const wob = oc.createOscillator(), wobG = oc.createGain(); wob.frequency.value = 23; wobG.gain.value = 40; wob.connect(wobG); wobG.connect(buzz.frequency);
+  const carrier = oc.createGain(), nG = oc.createGain(), bG = oc.createGain(); nG.gain.value = 1; bG.gain.value = 0;
+  noise.connect(nG); nG.connect(carrier); buzz.connect(bG); bG.connect(carrier);
+  const abs = oc.createWaveShaper(), curve = new Float32Array(1025); for (let i = 0; i < curve.length; i++) curve[i] = Math.abs(i / 512 - 1); abs.curve = curve;
+  const out = oc.createGain(), breath = oc.createGain(); breath.gain.value = 0.35; breath.connect(out); out.connect(oc.destination);
+  const N = 18, lo = 260, hi = 5200;
+  for (let k = 0; k < N; k++) {
+    const f = lo * Math.pow(hi / lo, k / (N - 1));
+    if (f * 1.2 < 1100) continue;                                  // nothing deep: a budgie's voice has no chest
+    const an = oc.createBiquadFilter(); an.type = 'bandpass'; an.frequency.value = f; an.Q.value = 5;
+    const sh = oc.createWaveShaper(); sh.curve = curve;
+    const env = oc.createBiquadFilter(); env.type = 'lowpass'; env.frequency.value = 35; env.Q.value = 0.5;
+    const syn = oc.createBiquadFilter(); syn.type = 'bandpass'; syn.frequency.value = Math.min(9500, f * 1.2); syn.Q.value = 5;
+    const vca = oc.createGain(); vca.gain.value = 0;
+    src.connect(an); an.connect(sh); sh.connect(env); env.connect(vca.gain);
+    carrier.connect(syn); syn.connect(vca); vca.connect(breath);
+  }
+  const clear = oc.createBiquadFilter(), clear2 = oc.createBiquadFilter(), cg = oc.createGain(); cg.gain.value = 1;
+  for (const h of [clear, clear2]) { h.type = 'highpass'; h.frequency.value = 1050; h.Q.value = 0.7; }
+  src.connect(clear); clear.connect(clear2); clear2.connect(cg); cg.connect(out);
+  src.start(); noise.start(); buzz.start(); wob.start();
+  const r = await oc.startRendering(), x = r.getChannelData(0);
+  let m = 0; for (let i = 0; i < x.length; i++) m = Math.max(m, Math.abs(x[i]));
+  const g = m ? 0.85 / m : 1, fn = Math.round(sr * 0.02); for (let i = 0; i < x.length; i++) x[i] *= g * Math.min(1, i / fn, (x.length - 1 - i) / fn);
+  return r;
+}
+function sayPhrase(p, o = {}) {
+  if (!PHRASES.length || !ctx) return 0; p = p || pick(PHRASES);
+  const src = ctx.createBufferSource(); src.buffer = p.buf; src.playbackRate.value = rand(0.97, 1.04);
+  const g = ctx.createGain(); g.gain.value = o.level == null ? 0.8 : o.level; src.connect(g); g.connect(voice);
+  src.start(ctx.currentTime + Math.max(0, o.at || 0)); const d = p.buf.duration / src.playbackRate.value;
+  if (!o.at) { markOutput(d * 1000 + 80); lastSoundEnd = Date.now() + d * 1000; }
+  return d;
+}
+function renderPhrases() {
+  const ul = $('#phraseList'); ul.innerHTML = '';
+  if (!PHRASES.length) { const li = document.createElement('li'); li.innerHTML = '<span class="muted small">No phrases yet</span>'; ul.append(li); return; }
+  for (const p of PHRASES) {
+    const li = document.createElement('li'), t = document.createElement('span'); t.textContent = p.text;
+    const play = document.createElement('button'); play.className = 'btn'; play.textContent = '▶ Hear it'; play.onclick = () => { ensureAudio(); sayPhrase(p, {level: 0.9}); };
+    const del = document.createElement('button'); del.className = 'btn ghost'; del.textContent = 'Delete'; del.onclick = () => { PHRASES = PHRASES.filter(q => q !== p); DB.del(p.id); renderPhrases(); };
+    li.append(t, play, del); ul.append(li);
+  }
+}
+async function loadPhrases() {
+  const rows = await DB.all(); ensureAudio();
+  PHRASES = rows.map(r => { const b = ctx.createBuffer(1, r.pcm.length, r.sr); b.copyToChannel(r.pcm, 0); return {id: r.id, text: r.text, buf: b}; });
+  renderPhrases();
+}
+const Rec = {mr: null, stream: null, chunks: [], t: 0, stopT: 0, busy: false};
+async function recStart() {
+  if (Rec.mr || Rec.busy) return;
+  if (!$('#phraseText').value.trim()) { toast('Type the phrase first'); $('#phraseText').focus(); return; }
+  if (!window.MediaRecorder || !navigator.mediaDevices) { toast("This browser can't record here"); return; }
+  ensureAudio();
+  try { Rec.stream = await navigator.mediaDevices.getUserMedia({audio: true}); } catch (e) { toast('Allow the microphone to record a phrase'); return; }
+  Rec.chunks = []; Rec.mr = new MediaRecorder(Rec.stream); Rec.mr.ondataavailable = e => { if (e.data.size) Rec.chunks.push(e.data); };
+  Rec.mr.onstop = recDone; Rec.mr.start(); Rec.t = Date.now(); Rec.listening = true;
+  $('#recBtn').classList.add('rec'); $('#recBtn').textContent = 'Recording… let go to stop';
+  Rec.stopT = setTimeout(recStop, 4000);
+}
+function recStop() { clearTimeout(Rec.stopT); if (Rec.mr && Rec.mr.state !== 'inactive') Rec.mr.stop(); }
+async function recDone() {
+  const mr = Rec.mr; Rec.mr = null; Rec.stream.getTracks().forEach(t => t.stop()); Rec.busy = true;
+  $('#recBtn').classList.remove('rec'); $('#recBtn').textContent = 'Making the budgie version…';
+  try {
+    if (Date.now() - Rec.t < 400) throw new Error('short');
+    const raw = await new Blob(Rec.chunks, {type: mr.mimeType}).arrayBuffer(), buf = await ctx.decodeAudioData(raw), out = await budgify(buf);
+    const text = $('#phraseText').value.trim(), id = 'p' + Date.now().toString(36), pcm = out.getChannelData(0).slice();
+    DB.put({id, text, sr: out.sampleRate, pcm}); PHRASES.push({id, text, buf: out}); if (PHRASES.length > 8) { DB.del(PHRASES[0].id); PHRASES.shift(); }
+    $('#phraseText').value = ''; renderPhrases(); sayPhrase(PHRASES[PHRASES.length - 1], {level: 0.9});
+  } catch (e) { toast(e.message === 'short' ? 'Hold the button while you speak' : "That recording didn't work. Try again"); }
+  Rec.busy = false; Rec.listening = false; $('#recBtn').textContent = 'Hold to record';
+}
 
 // ---------- quiet hours ----------
 function quietNow() {
@@ -207,7 +308,7 @@ function judge(c) {
 }
 function finishCall() {
   const c = Mic.cur; Mic.cur = null;
-  if (!c) return;
+  if (!c || Rec.listening) return;    // you are recording a phrase: not a call
   const why = judge(c);
   if (Mic.log) Mic.log.push({t: Math.round(c.start), dur: Math.round(c.last - c.start + 20), n: c.n, syl: c.syl, f: Math.round(c.fsum / c.n), flat: +median(c.flats).toFixed(3), voice: c.voice, nv: c.nv, va: c.va, fr: c.fr, jf: +(c.pks.slice(1).filter((p, i) => Math.abs(p - c.pks[i]) > 250).length / Math.max(1, c.pks.length - 1)).toFixed(2), jm: median(c.pks.slice(1).map((p, i) => Math.abs(p - c.pks[i]))), why});
   if (why) { if (why !== 'click') { Mic.ignored++; $('#lastIgnored').textContent = why.charAt(0).toUpperCase() + why.slice(1) + ' · ' + new Date().toLocaleTimeString([], {hour: 'numeric', minute: '2-digit'}) + ' · ' + Mic.ignored + ' so far'; } return; }
@@ -277,6 +378,10 @@ function callOut(manual) {
   // in a sociable or playful spell it sometimes warbles to itself, the sound a contented budgie makes.
   const mood = manual ? '' : Bird.mood, quiet = mood === 'sleepy' || mood === 'grooming';
   if (quiet && Math.random() < 0.6) return;
+  if ((mood === 'social' || mood === 'playful') && PHRASES.length && Math.random() < 0.15) {
+    const d = sayPhrase(null, {level: rand(0.55, 0.75)}); pending = {id: null, t: Date.now() + d * 1000}; missedCallOuts++;
+    $('#lastReply').textContent = 'Said one of your phrases · ' + d.toFixed(2) + ' s'; return;
+  }
   if ((mood === 'social' || mood === 'playful') && Math.random() < 0.45) {
     const d = warble({sec: rand(1, 2.2), level: rand(0.35, 0.55)}); pending = {id: null, t: Date.now() + d * 1000}; missedCallOuts++;
     $('#lastReply').textContent = 'Warbled to itself · ' + d.toFixed(2) + ' s'; return;
@@ -357,6 +462,11 @@ const bind = (id, key, after) => { $(id).checked = st[key]; $(id).onchange = e =
 bind('#answerBack', 'answer'); bind('#callOut', 'callOut', on => { if (on) scheduleCallOut(); });
 bind('#bgFlock', 'flock', on => { if (on) nextFlock = Date.now() + 8000; });
 bind('#ownVoice', 'ownVoice');
+{ const b = $('#recBtn');
+  b.addEventListener('pointerdown', e => { e.preventDefault(); recStart(); });
+  for (const ev of ['pointerup', 'pointerleave', 'pointercancel']) b.addEventListener(ev, () => { if (Rec.mr) { if (Date.now() - Rec.t < 400) setTimeout(recStop, 400); else recStop(); } });
+  b.addEventListener('contextmenu', e => e.preventDefault()); }
+renderPhrases(); loadPhrases();
 bind('#quietOn', 'quiet', on => { setStatus(); toast(on ? 'Perchy will stay quiet from 8:30 PM to 7 AM' : 'Perchy will make sounds at any hour'); });
 const showBird = on => { $('#hiddenMsg').hidden = on; $('#stage').style.visibility = on ? 'visible' : 'hidden'; Bird.setVisible(on); };
 bind('#showBird', 'show', showBird);
@@ -505,4 +615,4 @@ setBg(st.bg || '');
 fillControls(Bird.getSpec()); renderBirds();
 showBird(st.show); renderTiles(); setStatus();
 setInterval(tick, 1000);
-window.__perchy = {S, Mic, LIB, Bird, warble, callOut, loadSounds, out: () => voice, ctx: () => ctx, state: () => ({awake, streak, heard: S.n, answered: S.answered, lastCall: $('#lastCall').textContent, lastReply: $('#lastReply').textContent})};
+window.__perchy = {S, Mic, LIB, Bird, warble, callOut, loadSounds, budgify, sayPhrase, phrases: () => PHRASES, out: () => voice, ctx: () => ctx, state: () => ({awake, streak, heard: S.n, answered: S.answered, lastCall: $('#lastCall').textContent, lastReply: $('#lastReply').textContent})};

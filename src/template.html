@@ -119,6 +119,8 @@ label.field{display:grid;gap:4px;font-size:.88rem;color:var(--muted)}
 .meter i{display:block;height:100%;width:0;background:var(--green);transition:width .08s linear}
 .kv{display:grid;grid-template-columns:auto 1fr;gap:4px 14px;font-size:.92rem;margin:0}
 .kv dt{color:var(--muted)} .kv dd{margin:0}
+.plist{list-style:none;margin:0;padding:0;display:grid;gap:6px}.plist li{display:flex;gap:8px;align-items:center;background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:6px 8px 6px 12px}.plist li span{flex:1;min-width:0;overflow-wrap:anywhere}.plist button{min-height:38px;padding:6px 12px}
+#recBtn.rec{background:var(--warn);border-color:var(--warn);color:#fff}
 .tiles{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
 .tile{background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:10px 12px}
 .tile b{display:block;font-family:var(--display);font-size:1.5rem;line-height:1.1;font-variant-numeric:tabular-nums}
@@ -231,6 +233,13 @@ label.field{display:grid;gap:4px;font-size:.88rem;color:var(--muted)}
         </dl>
         <p class="small muted">Perchy answers budgie sounds only: a quick call back for a contact call, and a soft warble when your bird warbles (it sometimes just listens, as a flockmate would). Voices, whistles, hisses, knocks and clicks are ignored, and so is a call made while someone is talking.</p>
         <div class="row"><button class="btn" id="simBtn">Try a pretend call</button></div>
+      </div>
+
+      <div class="card">
+        <h2>Your phrases</h2>
+        <p class="small muted">Pet budgies pick up words their people say a lot and slip them into their warble. Type a phrase you often say, then press and hold the button and say it. Perchy turns your voice into a budgie version and now and then works it into its warble.</p>
+        <div class="row"><input type="text" id="phraseText" maxlength="40" placeholder="For example: pretty bird" aria-label="The phrase"><button class="btn" id="recBtn">Hold to record</button></div>
+        <ul class="plist" id="phraseList"></ul>
       </div>
 
       <div class="card">
