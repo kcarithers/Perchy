@@ -60,6 +60,22 @@ body.solo #stage{width:100vw;height:100dvh;max-height:none;aspect-ratio:auto}
 .stage:fullscreen #stage{width:100vw;height:100vh;max-height:none;aspect-ratio:auto}
 body.solo .stage .cap{left:max(12px,env(safe-area-inset-left,0px));bottom:max(12px,env(safe-area-inset-bottom,0px))}
 body.solo .stage .solo-btn{top:max(12px,env(safe-area-inset-top,0px));right:max(12px,env(safe-area-inset-right,0px))}
+.ctl{display:contents}
+.gear-btn,.sheet{display:none}
+body.solo .stage .gear-btn{display:block;position:absolute;width:44px;height:44px;border-radius:50%;border:0;background:rgba(16,28,18,.45);color:#fff;font-size:1.3rem;line-height:1;cursor:pointer;touch-action:none;right:max(12px,env(safe-area-inset-right,0px));bottom:max(12px,env(safe-area-inset-bottom,0px));transition:transform .6s linear,background .6s linear}
+body.solo .stage .gear-btn.holding{transform:scale(1.35);background:rgba(60,130,70,.9)}
+body.solo .sheet{display:block;position:absolute;left:0;right:0;bottom:0;z-index:5;max-height:55%;margin:0 auto;max-width:760px;background:var(--bg);color:var(--ink);font-size:1rem;line-height:1.5;border-radius:18px 18px 0 0;box-shadow:0 -8px 30px rgba(0,0,0,.35);overflow:hidden;transform:translateY(105%);visibility:hidden;transition:transform .28s ease,visibility 0s .28s;text-align:left}
+body.solo.sheet-open .sheet{transform:none;visibility:visible;transition:transform .28s ease}
+body.solo.sheet-open .gear-btn,body.solo.sheet-open .cap{visibility:hidden}
+body.solo.sheet-open #stage{height:47vh;height:47dvh}
+.sheet-in{display:flex;flex-direction:column;max-height:55vh;max-height:55dvh}
+.sheet-head{display:flex;gap:8px;align-items:center;justify-content:space-between;padding:10px 14px;border-bottom:1px solid var(--line);flex:0 0 auto}
+.sheet-head b{font-family:var(--display);font-size:1.1rem}
+.sheet-body{overflow:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;padding:12px 14px calc(16px + env(safe-area-inset-bottom,0px));display:grid;gap:12px;touch-action:pan-y}
+.sheet-body #fullBtn{display:none}
+@media (min-aspect-ratio:5/4){body.solo .sheet{left:auto;right:0;top:0;max-height:none;width:min(430px,50%);margin:0;border-radius:18px 0 0 18px;transform:translateX(105%)}.sheet-in{max-height:none;height:100%}
+body.solo.sheet-open #stage{height:100vh;height:100dvh;width:calc(100vw - min(430px,50vw))}}
+@media (prefers-reduced-motion: reduce){body.solo .sheet{transition:none}}
 .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
 .picker{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:10px}
 .picker>span{font-weight:700;margin-right:2px}
@@ -125,7 +141,13 @@ label.field{display:grid;gap:4px;font-size:.88rem;color:var(--muted)}
         <div class="hiddenmsg" id="hiddenMsg" hidden>Perchy is hidden. The sounds still work.</div>
         <span class="cap" id="cap">Dozing</span>
         <button class="solo-btn" id="soloBtn" aria-label="Show only the bird, full screen" title="Full screen">⤢</button>
+        <button class="gear-btn" id="gearBtn" aria-label="Open settings (press and hold)" title="Hold to open settings">⚙</button>
+        <div class="sheet" id="sheet" role="dialog" aria-label="Settings" aria-hidden="true"><div class="sheet-in">
+          <div class="sheet-head"><b>Settings</b><span class="row"><button class="btn" id="sheetLeave">Leave full screen</button><button class="btn primary" id="sheetClose">Done</button></span></div>
+          <div class="sheet-body" id="sheetBody"></div>
+        </div></div>
       </div>
+      <div class="ctl" id="ctlA">
       <div class="row">
         <button class="btn primary big" id="wakeBtn">Wake Perchy</button>
         <button class="btn" id="callOutBtn">Call to your bird</button>
@@ -186,9 +208,10 @@ label.field{display:grid;gap:4px;font-size:.88rem;color:var(--muted)}
       </div>
       <p class="note" id="micNote" hidden></p>
       <label class="field" for="vol">Volume <input type="range" id="vol" min="0" max="100" step="1"></label>
+      </div>
     </div>
 
-    <div class="col">
+    <div class="col"><div class="ctl" id="ctlB">
       <div class="card">
         <h2>Conversation</h2>
         <div class="stack">
@@ -218,7 +241,7 @@ label.field{display:grid;gap:4px;font-size:.88rem;color:var(--muted)}
         <h2>So far</h2>
         <div class="tiles" id="tiles"></div>
       </div>
-    </div>
+    </div></div>
   </div>
 
   <p class="small muted">Set the phone or tablet at perch height near the cage, plugged in, and keep this page open. Start at a low volume and watch how your bird takes it. Everything runs on this device and nothing is recorded or uploaded.</p>
@@ -1201,6 +1224,7 @@ const stageBox = $('#stage').parentElement;
 function setSolo(on) {
   document.body.classList.toggle('solo', on); $('#soloBtn').textContent = on ? '✕' : '⤢';
   $('#soloBtn').setAttribute('aria-label', on ? 'Leave full screen' : 'Show only the bird, full screen'); $('#soloBtn').title = on ? 'Leave full screen' : 'Full screen';
+  if (!on) setSheet(false);
   try { if (on && stageBox.requestFullscreen && !document.fullscreenElement) stageBox.requestFullscreen().catch(() => {}); else if (!on && document.fullscreenElement) document.exitFullscreen().catch(() => {}); } catch (e) {}
 }
 // In full screen the close button needs a held press, so a peck cannot close it
@@ -1217,8 +1241,29 @@ for (const ev of ['pointerup', 'pointerleave', 'pointercancel']) $('#soloBtn').a
 });
 $('#soloBtn').addEventListener('keydown', e => { if ((e.key === 'Enter' || e.key === ' ') && document.body.classList.contains('solo')) { e.preventDefault(); setSolo(false); } });
 $('#fullBtn').onclick = () => setSolo(true);
+// Settings in full screen: a held press on the gear slides the controls up over the bird. A touch on the bird closes them without making a call.
+const homes = [];
+function setSheet(on) {
+  const b = document.body; if (on === b.classList.contains('sheet-open')) return;
+  if (on) for (const id of ['#ctlA', '#ctlB']) { const el = $(id), mark = document.createComment('ctl'); el.before(mark); homes.push([el, mark]); $('#sheetBody').append(el); }
+  else while (homes.length) { const [el, mark] = homes.pop(); mark.replaceWith(el); }
+  b.classList.toggle('sheet-open', on); $('#sheet').setAttribute('aria-hidden', on ? 'false' : 'true');
+  if (on) { $('#sheetBody').scrollTop = 0; sheetAt = Date.now(); }
+}
+let gearT = 0, sheetAt = 0;
+$('#gearBtn').addEventListener('pointerdown', e => {
+  e.preventDefault(); clearTimeout(gearT); $('#gearBtn').classList.add('holding');
+  gearT = setTimeout(() => { gearT = 0; $('#gearBtn').classList.remove('holding'); setSheet(true); }, 600);
+});
+for (const ev of ['pointerup', 'pointerleave', 'pointercancel']) $('#gearBtn').addEventListener(ev, () => {
+  if (!gearT) return; clearTimeout(gearT); gearT = 0; $('#gearBtn').classList.remove('holding');
+  const c = $('#cap'); if (c.textContent !== 'Hold ⚙ for settings') capBack = c.textContent; c.textContent = 'Hold ⚙ for settings'; setTimeout(() => { if (c.textContent === 'Hold ⚙ for settings') c.textContent = capBack; }, 1800);
+});
+$('#gearBtn').addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setSheet(true); } });
+$('#sheetClose').onclick = () => setSheet(false);
+$('#sheetLeave').onclick = () => setSolo(false);
 document.addEventListener('fullscreenchange', () => { if (!document.fullscreenElement && document.body.classList.contains('solo')) setSolo(false); });
-document.addEventListener('keydown', e => { if (e.key === 'Escape' && document.body.classList.contains('solo')) setSolo(false); });
+document.addEventListener('keydown', e => { if (e.key !== 'Escape' || !document.body.classList.contains('solo')) return; if (document.body.classList.contains('sheet-open')) setSheet(false); else setSolo(false); });
 // ---------- touch to call ----------
 // A touch anywhere on the picture (a finger, or your bird's beak) makes Perchy look at the spot and call.
 // One call at a time: quick repeated pecks do not stack calls. In the page a touch counts when it lifts without sliding, so scrolling still works; in full screen it counts the moment it lands.
@@ -1238,6 +1283,7 @@ async function touched(e) {
 const onStage = e => e.target === $('#stage');
 stageBox.addEventListener('pointerdown', e => {
   if (!onStage(e) || e.button > 0) return;
+  if (document.body.classList.contains('sheet-open')) { e.preventDefault(); touchDown = null; if (Date.now() - sheetAt > 400) setSheet(false); return; }
   if (document.body.classList.contains('solo')) { e.preventDefault(); touched(e); touchDown = null; } else touchDown = {id: e.pointerId, x: e.clientX, y: e.clientY, t: Date.now()};
 });
 stageBox.addEventListener('pointerup', e => {

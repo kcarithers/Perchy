@@ -302,6 +302,7 @@ const stageBox = $('#stage').parentElement;
 function setSolo(on) {
   document.body.classList.toggle('solo', on); $('#soloBtn').textContent = on ? '✕' : '⤢';
   $('#soloBtn').setAttribute('aria-label', on ? 'Leave full screen' : 'Show only the bird, full screen'); $('#soloBtn').title = on ? 'Leave full screen' : 'Full screen';
+  if (!on) setSheet(false);
   try { if (on && stageBox.requestFullscreen && !document.fullscreenElement) stageBox.requestFullscreen().catch(() => {}); else if (!on && document.fullscreenElement) document.exitFullscreen().catch(() => {}); } catch (e) {}
 }
 // In full screen the close button needs a held press, so a peck cannot close it
@@ -318,8 +319,29 @@ for (const ev of ['pointerup', 'pointerleave', 'pointercancel']) $('#soloBtn').a
 });
 $('#soloBtn').addEventListener('keydown', e => { if ((e.key === 'Enter' || e.key === ' ') && document.body.classList.contains('solo')) { e.preventDefault(); setSolo(false); } });
 $('#fullBtn').onclick = () => setSolo(true);
+// Settings in full screen: a held press on the gear slides the controls up over the bird. A touch on the bird closes them without making a call.
+const homes = [];
+function setSheet(on) {
+  const b = document.body; if (on === b.classList.contains('sheet-open')) return;
+  if (on) for (const id of ['#ctlA', '#ctlB']) { const el = $(id), mark = document.createComment('ctl'); el.before(mark); homes.push([el, mark]); $('#sheetBody').append(el); }
+  else while (homes.length) { const [el, mark] = homes.pop(); mark.replaceWith(el); }
+  b.classList.toggle('sheet-open', on); $('#sheet').setAttribute('aria-hidden', on ? 'false' : 'true');
+  if (on) { $('#sheetBody').scrollTop = 0; sheetAt = Date.now(); }
+}
+let gearT = 0, sheetAt = 0;
+$('#gearBtn').addEventListener('pointerdown', e => {
+  e.preventDefault(); clearTimeout(gearT); $('#gearBtn').classList.add('holding');
+  gearT = setTimeout(() => { gearT = 0; $('#gearBtn').classList.remove('holding'); setSheet(true); }, 600);
+});
+for (const ev of ['pointerup', 'pointerleave', 'pointercancel']) $('#gearBtn').addEventListener(ev, () => {
+  if (!gearT) return; clearTimeout(gearT); gearT = 0; $('#gearBtn').classList.remove('holding');
+  const c = $('#cap'); if (c.textContent !== 'Hold ⚙ for settings') capBack = c.textContent; c.textContent = 'Hold ⚙ for settings'; setTimeout(() => { if (c.textContent === 'Hold ⚙ for settings') c.textContent = capBack; }, 1800);
+});
+$('#gearBtn').addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setSheet(true); } });
+$('#sheetClose').onclick = () => setSheet(false);
+$('#sheetLeave').onclick = () => setSolo(false);
 document.addEventListener('fullscreenchange', () => { if (!document.fullscreenElement && document.body.classList.contains('solo')) setSolo(false); });
-document.addEventListener('keydown', e => { if (e.key === 'Escape' && document.body.classList.contains('solo')) setSolo(false); });
+document.addEventListener('keydown', e => { if (e.key !== 'Escape' || !document.body.classList.contains('solo')) return; if (document.body.classList.contains('sheet-open')) setSheet(false); else setSolo(false); });
 // ---------- touch to call ----------
 // A touch anywhere on the picture (a finger, or your bird's beak) makes Perchy look at the spot and call.
 // One call at a time: quick repeated pecks do not stack calls. In the page a touch counts when it lifts without sliding, so scrolling still works; in full screen it counts the moment it lands.
@@ -339,6 +361,7 @@ async function touched(e) {
 const onStage = e => e.target === $('#stage');
 stageBox.addEventListener('pointerdown', e => {
   if (!onStage(e) || e.button > 0) return;
+  if (document.body.classList.contains('sheet-open')) { e.preventDefault(); touchDown = null; if (Date.now() - sheetAt > 400) setSheet(false); return; }
   if (document.body.classList.contains('solo')) { e.preventDefault(); touched(e); touchDown = null; } else touchDown = {id: e.pointerId, x: e.clientX, y: e.clientY, t: Date.now()};
 });
 stageBox.addEventListener('pointerup', e => {
