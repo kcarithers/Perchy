@@ -511,7 +511,7 @@ const Bird = (() => {
         const cd = Math.hypot((deg - 62) / (9 * CK), (ap - 124) * Math.sin(tj) / (13 * CK));
         if (cd < 1 && deg < lim + 4) { mat = 'cheek'; l = 5.2; w = 4; }
         if (mat === 'bar') continue;                                 // the barred feathers are laid in their own rows below
-        const cw = CAP * capW(headDir(tj, ps)); add(1, f, w * (1 + 0.6 * cw), l * (1 + 0.6 * cw), mat, {lift: (mat === 'body' ? 0.12 : 0.07) + 0.04 * cw, fl: 0.75 + 0.3 * cw, th: mat === 'face' && cp < -0.5 && deg > 45 ? 1 : 0, ao: cp < -0.75 && deg > 64 ? 0.92 : 1});
+        const hd0 = headDir(tj, ps), cw = CAP * capW(hd0), top = sstep(0.15, 0.5, hd0[1]); add(1, f, w * (1 + 0.6 * cw), l * (1 + 0.45 * cw), mat, {lift: (mat === 'body' ? 0.12 : 0.07) - 0.035 * top, fl: lerp(0.75, 0.36, top), th: mat === 'face' && cp < -0.5 && deg > 45 ? 1 : 0, ao: cp < -0.75 && deg > 64 ? 0.92 : 1});
       }
       th += l0 * 0.43 / 17.2;
     }
@@ -531,7 +531,7 @@ const Bird = (() => {
         const a = tilted(tj - 0.03, s2), b = tilted(tj + 0.03, s2), d = sub(headPt(b[0], b[1], 0), headPt(a[0], a[1], 0)), dn = d[0] * f.n[0] + d[1] * f.n[1] + d[2] * f.n[2];
         f.t = norm([d[0] - dn * f.n[0], d[1] - dn * f.n[1], d[2] - dn * f.n[2]]);
         if (f.p[1] < 6.4 && Math.abs(f.p[0]) < 7 && f.p[2] > 8) continue;                         // nothing across the cere
-        const cw = CAP * capW(headDir(th, ps)); add(1, f, l0 * 1.6 * (1 + 0.35 * cw), l0 * 0.95 * (1 + 0.5 * cw), r() < 0.03 ? 'face' : 'hbar', {lift: 0.03 + 0.03 * cw, fl: 0.45 + 0.3 * cw, thin: 1, anchor: 0.36});
+        const cw = CAP * capW(headDir(th, ps)); add(1, f, l0 * 1.6 * (1 + 0.35 * cw), l0 * 0.95 * (1 + 0.5 * cw), r() < 0.03 ? 'face' : 'hbar', {lift: 0.03, fl: 0.45, thin: 1, anchor: 0.36});
       }
       t2 += l0 * 0.43 / 17.2;
     }
@@ -563,8 +563,8 @@ const Bird = (() => {
   // ----- pose: a set of springs, so every change of mind turns into a smooth movement -----
   const ch = {};
   const sp = (n, w, z, x) => { ch[n] = {x: x || 0, v: 0, t: x || 0, w, z}; };
-  sp('perch', 9, 0.9); sp('byaw', 5.5, 0.9, -18); sp('bpitch', 8, 0.72); sp('broll', 8, 0.7); sp('by', 12, 0.65);
-  sp('hyaw', 28, 0.84); sp('hpitch', 27, 0.84); sp('hroll', 23, 0.8); sp('hx', 15, 0.75); sp('hy', 15, 0.7); sp('hz', 14, 0.8);
+  sp('perch', 9, 0.9); sp('byaw', 4.2, 0.95, -18); sp('bpitch', 6.5, 0.85); sp('broll', 7, 0.85); sp('by', 9.5, 0.8);
+  sp('hyaw', 21, 0.88); sp('hpitch', 20, 0.88); sp('hroll', 17, 0.85); sp('hx', 15, 0.75); sp('hy', 15, 0.7); sp('hz', 14, 0.8);
   sp('jaw', 42, 1); sp('lid', 55, 1, 1); sp('fluff', 3.2, 1, 1); sp('ruffle', 9, 1); sp('throat', 30, 0.9);
   sp('tpitch', 10, 0.42); sp('tyaw', 10, 0.4); sp('tfan', 8, 0.8); sp('wingR', 6.5, 0.85); sp('wingL', 6.5, 0.85); sp('spR', 5.2, 0.88); sp('spL', 5.2, 0.88); sp('dim', 1.4, 1, 1); sp('angle', 5, 1); sp('bx', 8, 0.85); sp('crest', 4.5, 1); sp('fore', 7, 0.8);
   let held = false, T = 0, asleep = true, getEnv = () => 0, lively = 1, branchAngle = 0;
@@ -593,22 +593,23 @@ const Bird = (() => {
   function setMood(m, d) { if (m !== mood) { moodAt = T; tuckSide = rnd() < 0.5 ? 0 : 1; } mood = m; const M = MOODS[m]; moodUntil = T + (d || rr(M.dur[0], M.dur[1])); }
   // Where the head points. A budgie looks in quick darts with the head held dead still between them, and it studies
   // anything interesting with one eye, so many looks turn the head side-on to the viewer instead of facing it.
+  const NOLOOK = {preen: 1, shake: 1, tailwag: 1, yawn: 1, grind: 1, stretch: 1, spread: 1};      // moves the bird gives its whole attention to
   function look(big) {
-    const prev = {yaw: gaze.yaw, pitch: gaze.pitch, roll: gaze.roll}, wide = big || rnd() < 0.3 * lively, r = rnd(); gq.length = 0;
+    const prev = {yaw: gaze.yaw, pitch: gaze.pitch, roll: gaze.roll}, wide = big || rnd() < 0.18 * lively, r = rnd(); gq.length = 0;
     if (!big && r < (MOODS[mood].oneEye || 0.3)) { const sd = rnd() < 0.5 ? -1 : 1; gaze.yaw = sd * rr(44, 70); gaze.pitch = rr(-9, 8); gaze.roll = sd * rr(3, 20) * (rnd() < 0.75 ? 1 : -1); }
     else {
-      gaze.yaw = clamp((rnd() < 0.3 ? 0 : baseYaw * 0.5) + rr(-1, 1) * (wide ? 80 : 34), -88, 88);
+      gaze.yaw = clamp((rnd() < 0.3 ? 0 : baseYaw * 0.5) + rr(-1, 1) * (wide ? 66 : 30), -76, 76);
       gaze.pitch = rr(-14, 16) + (rnd() < 0.12 ? rr(14, 28) : 0); gaze.roll = rnd() < 0.35 ? rr(-22, 22) : rr(-6, 6);
     }
     gaze.ext = rr(-1.4, 2.2) + (wide ? 1.2 : 0) - 0.05 * gaze.pitch;
-    if (Math.abs(gaze.yaw - baseYaw) > 50) baseYaw = clamp(lerp(baseYaw, gaze.yaw, 0.55), -42, 42);
-    looks = looks > 0 ? looks - 1 : (rnd() < 0.4 ? 1 + Math.floor(rnd() * 2) : 0);     // birds often look in quick twos and threes
+    if (Math.abs(gaze.yaw - baseYaw) > 50) baseYaw = clamp(lerp(baseYaw, gaze.yaw, 0.4), -38, 38);
+    looks = looks > 0 ? looks - 1 : (rnd() < 0.28 ? 1 + Math.floor(rnd() * 2) : 0);     // birds often look in quick twos and threes
     nextLook = T + (looks > 0 ? rr(0.22, 0.5) : (rnd() < 0.16 ? rr(3, 6) : rr(0.6, 2.6)) / (lively * MOODS[mood].look));
     const now = {yaw: gaze.yaw, pitch: gaze.pitch, roll: gaze.roll};
     if (!looks && rnd() < 0.1 && Math.abs(now.yaw - prev.yaw) > 25) { gq.push({t: T + rr(0.3, 0.45), set: prev}, {t: T + rr(0.75, 0.95), set: now}); nextLook = Math.max(nextLook, T + 1.6); }   // a double take
     else if (rnd() < 0.34) gq.push({t: T + rr(0.16, 0.36), d: [rr(-7, 7), rr(-5, 5), rr(-9, 9)]});                 // a small correction just after landing
   }
-  function posture() { const L = lively; post.byaw = rr(-5, 5) * L; post.bpitch = rr(-2.6, 3); post.broll = rr(-2.2, 2.2); post.by = rr(-1.1, 0.7); nextPost = T + rr(3, 9) / L; }
+  function posture() { const L = lively; post.byaw = rr(-3.5, 3.5) * L; post.bpitch = rr(-1.8, 2.2); post.broll = rr(-1.6, 1.6); post.by = rr(-0.8, 0.5); nextPost = T + rr(3, 9) / L; }
   // The small things a resting bird never quite stops doing, picked one at a time at irregular moments.
   const MICRO = [['fore', 1.6], ['toe', 2.2], ['beak', 2], ['tail', 2], ['tilt', 2], ['post', 1.6], ['still', 1.6], ['settle', 1.4], ['neck', 1.2], ['fan', 0.9], ['wing', 0.8], ['slowblink', 0.8]];
   function doMicro() {
@@ -694,7 +695,7 @@ const Bird = (() => {
     if (!asleep && !held && !act && T > moodUntil) setMood(pickW(MOODS[mood].next, null, k => LIVELY_MOODS[k] ? lively : k === 'sleepy' ? 1 / (lively * lively) : 1));
     const MD = MOODS[mood], idle = !asleep && !held && T > stillUntil;
     while (gq.length && T >= gq[0].t) { const q = gq.shift(); if (!idle && !q.force) continue; if (q.set) { gaze.yaw = q.set.yaw; gaze.pitch = q.set.pitch; gaze.roll = q.set.roll; } else { gaze.yaw = clamp(gaze.yaw + q.d[0], -88, 88); gaze.pitch += q.d[1]; gaze.roll += q.d[2]; } }
-    if (idle && T > nextLook && !(act && act.name === 'preen')) look(false);
+    if (idle && T > nextLook && !(act && NOLOOK[act.name])) look(false);
     if (idle && !act && T > nextPost && T > freezeUntil) posture();
     if (idle && !act && !speaking && T > nextMicro && T > freezeUntil) { nextMicro = T + rr(1.1, 4.2) / ((0.45 + 0.55 * L) * MD.micro); doMicro(); }
     calm += ((T < freezeUntil && !act ? 0 : 1) - calm) * Math.min(1, dt * 3);
