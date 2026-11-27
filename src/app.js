@@ -384,7 +384,7 @@ stageBox.addEventListener('contextmenu', e => e.preventDefault());
 if (!Array.isArray(st.birds)) st.birds = [];
 if ({blue: 1, green: 1, yellow: 1}[st.bird]) st.bird = st.bird === 'blue' ? 'sky' : st.bird;   // names used by the earlier version
 const allBirds = () => [...Bird.PRESETS, ...st.birds];
-const SPEC_KEYS = ['body', 'face', 'marks', 'cheek', 'cere', 'markAmt', 'size', 'build', 'fluff', 'tailLen'];
+const SPEC_KEYS = ['body', 'face', 'marks', 'cheek', 'cere', 'markAmt', 'size', 'build', 'fluff', 'tailLen', 'barStart', 'cap'];
 function fillControls(sp) { document.querySelectorAll('#custom [data-k]').forEach(el => { el.value = sp[el.dataset.k]; }); }
 const CERE0 = '#5b86d8';                                        // the cere is its own choice (blue unless you change it); a variety never changes it
 if (!/^#[0-9a-f]{6}$/i.test(st.cere || '')) { const mine = st.birds.find(b => b.id === st.bird); st.cere = mine && mine.cere ? mine.cere : CERE0; }
@@ -401,7 +401,7 @@ function renderBirds() {
 function chooseBird(id) {
   const b = allBirds().find(x => x.id === id) || Bird.PRESETS[0], own = st.birds.includes(b);
   const cur = st.spec || Bird.getSpec(), keep = {};
-  if (!own && cur) for (const k of ['size', 'build', 'fluff', 'tailLen']) if (cur[k] !== undefined) keep[k] = cur[k];   // a variety changes colours only; size and shape stay as you set them
+  if (!own && cur) for (const k of ['size', 'build', 'fluff', 'tailLen', 'barStart', 'cap']) if (cur[k] !== undefined) keep[k] = cur[k];   // a variety changes colours only; size and shape stay as you set them
   if (own && b.cere) st.cere = b.cere;                         // one of your own birds brings the cere it was saved with
   st.bird = b.id; st.spec = Object.assign({}, b, keep, {cere: st.cere}); st.edited = false; Bird.setSpec(st.spec); fillControls(Bird.getSpec()); $('#birdName').value = own ? b.name : '';
   $('#stage').setAttribute('aria-label', 'Perchy, a ' + b.name.toLowerCase() + ' budgie on a branch'); renderBirds(); save();
