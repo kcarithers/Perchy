@@ -9,7 +9,7 @@ let toastT;
 function toast(msg) { const t = $('#toast'); t.textContent = msg; t.classList.add('show'); clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove('show'), 3200); }
 
 // ---------- saved state (this device only) ----------
-const DEFAULTS = {set: {vol: 50, answer: true, callOut: true, flock: true, quiet: false, show: true, sens: 55, bird: 'sky', angle: 8, lively: 1, bg: '', birds: []}, n: 0, pitch: 3100, answered: 0, fav: {}, day: {key: '', count: 0}};
+const DEFAULTS = {set: {vol: 50, answer: true, callOut: true, flock: true, quiet: false, show: true, sens: 55, bird: 'sky', angle: 8, lively: 1, bg: '', cere: '', birds: []}, n: 0, pitch: 3100, answered: 0, fav: {}, day: {key: '', count: 0}};
 let S = JSON.parse(JSON.stringify(DEFAULTS));
 try { const raw = JSON.parse(localStorage.getItem('perchy.v3') || 'null'); if (raw) { Object.assign(S, raw); S.set = Object.assign({}, DEFAULTS.set, raw.set || {}); } } catch (e) {}
 let saveT;
@@ -302,6 +302,7 @@ const stageBox = $('#stage').parentElement;
 function setSolo(on) {
   document.body.classList.toggle('solo', on); $('#soloBtn').textContent = on ? '✕' : '⤢';
   $('#soloBtn').setAttribute('aria-label', on ? 'Leave full screen' : 'Show only the bird, full screen'); $('#soloBtn').title = on ? 'Leave full screen' : 'Full screen';
+  if (!on) setSheet('');
   try { if (on && stageBox.requestFullscreen && !document.fullscreenElement) stageBox.requestFullscreen().catch(() => {}); else if (!on && document.fullscreenElement) document.exitFullscreen().catch(() => {}); } catch (e) {}
 }
 // In full screen the close button needs a held press, so a peck cannot close it
@@ -318,8 +319,38 @@ for (const ev of ['pointerup', 'pointerleave', 'pointercancel']) $('#soloBtn').a
 });
 $('#soloBtn').addEventListener('keydown', e => { if ((e.key === 'Enter' || e.key === ' ') && document.body.classList.contains('solo')) { e.preventDefault(); setSolo(false); } });
 $('#fullBtn').onclick = () => setSolo(true);
+// Settings in full screen: a row of small topic icons along the bottom. A held press on one opens a short strip with only that topic's
+// controls, and the bird moves up into the space that is left. A touch on the bird, or on the lit icon, closes it without making a call.
+const homes = []; let topic = '', sheetAt = 0;
+const wideMq = matchMedia('(min-aspect-ratio:5/4)');
+function fitStage() { $('#stage').style.height = topic && !wideMq.matches ? Math.max(120, stageBox.clientHeight - $('#sheet').offsetHeight) + 'px' : ''; }
+function setSheet(t) {
+  t = t || ''; if (t === topic) return;
+  while (homes.length) { const [el, mark] = homes.pop(); mark.replaceWith(el); }
+  if (t) for (const el of document.querySelectorAll('[data-topic="' + t + '"]')) { const mark = document.createComment('ctl'); el.before(mark); homes.push([el, mark]); $('#sheetBody').append(el); }
+  topic = t; document.body.classList.toggle('sheet-open', !!t); $('#sheet').setAttribute('aria-hidden', t ? 'false' : 'true');
+  for (const b of $('#tbar').children) b.classList.toggle('on', b.dataset.t === t);
+  if (t) { $('#sheetBody').scrollTop = 0; sheetAt = Date.now(); }
+  fitStage();
+}
+if (window.ResizeObserver) new ResizeObserver(fitStage).observe($('#sheet'));
+addEventListener('resize', fitStage);
+let gearT = 0;
+const HINT = 'Hold an icon to open it';
+for (const b of $('#tbar').children) {
+  b.addEventListener('pointerdown', e => {
+    e.preventDefault(); clearTimeout(gearT); gearT = 0;
+    if (topic) { setSheet(b.dataset.t === topic ? '' : b.dataset.t); return; }      // already open: a tap switches topic or closes
+    b.classList.add('holding'); gearT = setTimeout(() => { gearT = 0; b.classList.remove('holding'); setSheet(b.dataset.t); }, 600);
+  });
+  for (const ev of ['pointerup', 'pointerleave', 'pointercancel']) b.addEventListener(ev, () => {
+    if (!gearT) return; clearTimeout(gearT); gearT = 0; b.classList.remove('holding');
+    const c = $('#cap'); if (c.textContent !== HINT) capBack = c.textContent; c.textContent = HINT; setTimeout(() => { if (c.textContent === HINT) c.textContent = capBack; }, 1800);
+  });
+  b.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setSheet(b.dataset.t === topic ? '' : b.dataset.t); } });
+}
 document.addEventListener('fullscreenchange', () => { if (!document.fullscreenElement && document.body.classList.contains('solo')) setSolo(false); });
-document.addEventListener('keydown', e => { if (e.key === 'Escape' && document.body.classList.contains('solo')) setSolo(false); });
+document.addEventListener('keydown', e => { if (e.key !== 'Escape' || !document.body.classList.contains('solo')) return; if (topic) setSheet(''); else setSolo(false); });
 // ---------- touch to call ----------
 // A touch anywhere on the picture (a finger, or your bird's beak) makes Perchy look at the spot and call.
 // One call at a time: quick repeated pecks do not stack calls. In the page a touch counts when it lifts without sliding, so scrolling still works; in full screen it counts the moment it lands.
@@ -339,6 +370,7 @@ async function touched(e) {
 const onStage = e => e.target === $('#stage');
 stageBox.addEventListener('pointerdown', e => {
   if (!onStage(e) || e.button > 0) return;
+  if (document.body.classList.contains('sheet-open')) { e.preventDefault(); touchDown = null; if (Date.now() - sheetAt > 400) setSheet(''); return; }
   if (document.body.classList.contains('solo')) { e.preventDefault(); touched(e); touchDown = null; } else touchDown = {id: e.pointerId, x: e.clientX, y: e.clientY, t: Date.now()};
 });
 stageBox.addEventListener('pointerup', e => {
@@ -354,21 +386,30 @@ if ({blue: 1, green: 1, yellow: 1}[st.bird]) st.bird = st.bird === 'blue' ? 'sky
 const allBirds = () => [...Bird.PRESETS, ...st.birds];
 const SPEC_KEYS = ['body', 'face', 'marks', 'cheek', 'cere', 'markAmt', 'size', 'build', 'fluff', 'tailLen'];
 function fillControls(sp) { document.querySelectorAll('#custom [data-k]').forEach(el => { el.value = sp[el.dataset.k]; }); }
+const CERE0 = '#5b86d8';                                        // the cere is its own choice (blue unless you change it); a variety never changes it
+if (!/^#[0-9a-f]{6}$/i.test(st.cere || '')) { const mine = st.birds.find(b => b.id === st.bird); st.cere = mine && mine.cere ? mine.cere : CERE0; }
 function renderBirds() {
-  const box = $('#birdPick'); box.innerHTML = '';
-  for (const b of allBirds()) {
-    const x = document.createElement('button'), i = document.createElement('i'); i.style.background = 'linear-gradient(135deg,' + b.face + ' 0 38%,' + b.body + ' 38%)';
-    x.append(i, b.name); x.setAttribute('aria-pressed', String(b.id === st.bird && !st.edited)); x.onclick = () => chooseBird(b.id); box.append(x);
+  for (const [sel, list, none] of [['#birdPick', Bird.PRESETS, 'Choose a variety'], ['#myPick', st.birds, st.birds.length ? 'Choose a saved bird' : 'None saved yet']]) {
+    const box = $(sel), here = !st.edited && list.some(b => b.id === st.bird); box.innerHTML = '';
+    const o0 = document.createElement('option'); o0.value = ''; o0.textContent = none; o0.disabled = list.length > 0; box.append(o0);
+    for (const b of list) { const o = document.createElement('option'); o.value = b.id; o.textContent = b.name; box.append(o); }
+    box.value = here ? st.bird : ''; box.classList.toggle('on', here); box.disabled = !list.length;
   }
   const mine = st.birds.some(b => b.id === st.bird); $('#delBird').hidden = !mine;
+  document.querySelectorAll('#cereChips button').forEach(b => b.classList.toggle('on', b.dataset.c.toLowerCase() === st.cere.toLowerCase())); $('#cerePick').value = st.cere;
 }
 function chooseBird(id) {
-  const b = allBirds().find(x => x.id === id) || Bird.PRESETS[0];
+  const b = allBirds().find(x => x.id === id) || Bird.PRESETS[0], own = st.birds.includes(b);
   const cur = st.spec || Bird.getSpec(), keep = {};
-  if (!st.birds.includes(b) && cur) for (const k of ['size', 'build', 'fluff', 'tailLen']) if (cur[k] !== undefined) keep[k] = cur[k];   // a built-in colour changes colours only; size and shape stay as you set them
-  st.bird = b.id; st.spec = Object.assign({}, b, keep); st.edited = false; Bird.setSpec(st.spec); fillControls(Bird.getSpec()); $('#birdName').value = st.birds.includes(b) ? b.name : '';
+  if (!own && cur) for (const k of ['size', 'build', 'fluff', 'tailLen']) if (cur[k] !== undefined) keep[k] = cur[k];   // a variety changes colours only; size and shape stay as you set them
+  if (own && b.cere) st.cere = b.cere;                         // one of your own birds brings the cere it was saved with
+  st.bird = b.id; st.spec = Object.assign({}, b, keep, {cere: st.cere}); st.edited = false; Bird.setSpec(st.spec); fillControls(Bird.getSpec()); $('#birdName').value = own ? b.name : '';
   $('#stage').setAttribute('aria-label', 'Perchy, a ' + b.name.toLowerCase() + ' budgie on a branch'); renderBirds(); save();
 }
+for (const sel of ['#birdPick', '#myPick']) $(sel).onchange = e => { if (e.target.value) chooseBird(e.target.value); };
+function setCere(c) { st.cere = c; st.spec = Object.assign({}, Bird.getSpec(), st.spec || {}, {cere: c}); Bird.setSpec(st.spec); renderBirds(); save(); }
+document.querySelectorAll('#cereChips button').forEach(b => { b.onclick = () => setCere(b.dataset.c); });
+$('#cerePick').oninput = e => setCere(e.target.value);
 let specT;
 document.querySelectorAll('#custom [data-k]').forEach(el => { el.oninput = () => {
   const k = el.dataset.k; st.spec = Object.assign({}, Bird.getSpec(), st.spec || {}, {[k]: el.type === 'range' ? +el.value : el.value}); if (k === 'body' || k === 'face') st.spec.tail = '';
@@ -395,7 +436,8 @@ for (const [label, act] of [['Spread wing', 'spread'], ['Stretch', 'stretch'], [
   };
 }
 
-Bird.init($('#stage'), {getEnv: voiceEnv, spec: st.spec || allBirds().find(b => b.id === st.bird) || Bird.PRESETS[0], angle: st.angle, lively: st.lively});
+if (st.spec) st.spec.cere = st.cere;
+Bird.init($('#stage'), {getEnv: voiceEnv, spec: st.spec || Object.assign({}, allBirds().find(b => b.id === st.bird) || Bird.PRESETS[0], {cere: st.cere}), angle: st.angle, lively: st.lively});
 setBg(st.bg || '');
 fillControls(Bird.getSpec()); renderBirds();
 showBird(st.show); renderTiles(); setStatus();
