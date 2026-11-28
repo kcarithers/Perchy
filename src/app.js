@@ -9,9 +9,11 @@ let toastT;
 function toast(msg) { const t = $('#toast'); t.textContent = msg; t.classList.add('show'); clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove('show'), 3200); }
 
 // ---------- saved state (this device only) ----------
-const DEFAULTS = {set: {vol: 50, answer: true, callOut: true, flock: true, ownVoice: true, phraseHigh: 0.15, quiet: false, show: true, sens: 55, bird: 'sky', angle: 8, lively: 1, near: 0, drift: true, bg: '', cere: '', birds: []}, n: 0, pitch: 3100, answered: 0, fav: {}, day: {key: '', count: 0}};
+const DEFAULTS = {set: {vol: 50, answer: true, callOut: true, flock: true, ownVoice: false, songVoice: true, phraseHigh: 0.15, quiet: false, show: true, sens: 55, bird: 'sky', angle: 8, lively: 1, near: 0, drift: true, bg: '', cere: '', birds: []}, n: 0, pitch: 3100, answered: 0, fav: {}, day: {key: '', count: 0}};
 let S = JSON.parse(JSON.stringify(DEFAULTS));
 try { const raw = JSON.parse(localStorage.getItem('perchy.v3') || 'null'); if (raw) { Object.assign(S, raw); S.set = Object.assign({}, DEFAULTS.set, raw.set || {}); } } catch (e) {}
+// one bird, one voice: the own-voice warble mixed your room's echo and a second bird into Perchy, so it starts off (it can be turned back on)
+if (!S.set.oneVoice) { S.set.oneVoice = 1; S.set.ownVoice = false; }
 let saveT;
 function save() { clearTimeout(saveT); saveT = setTimeout(() => { try { localStorage.setItem('perchy.v3', JSON.stringify(S)); } catch (e) {} }, 300); }
 
@@ -62,22 +64,38 @@ function voiceEnv() {
   let s = 0; for (let i = 0; i < envBuf.length; i++) s += envBuf[i] * envBuf[i];
   return clamp(Math.sqrt(s / envBuf.length) * 4.5, 0, 1);
 }
+// Perchy is one bird with one voice: it never plays two of its own sounds at once. voiceFree is when the current one ends.
+let voiceFree = 0; const LIVE = new Set();
+// Stop everything Perchy is saying or has lined up, with a short fade
+function hush() {
+  if (!ctx) return; const now = ctx.currentTime;
+  for (const {src, g} of LIVE) { try { g.gain.cancelScheduledValues(now); g.gain.setValueAtTime(g.gain.value, now); g.gain.linearRampToValueAtTime(0, now + 0.25); src.stop(now + 0.3); } catch (e) {} }
+  LIVE.clear(); voiceFree = now; outputUntil = performance.now() + 300; lastSoundEnd = Date.now(); singing = 0; singUi();
+}
+function play(buf, o = {}) {
+  const at = Math.max(ctx.currentTime + (o.delay || 0), o.queue === false ? 0 : voiceFree), off = o.off || 0, rate = o.rate || 1;
+  const len = Math.min(o.len || buf.duration - off, buf.duration - off), d = len / rate, lv = o.level == null ? 1 : o.level, fi = o.fadeIn || 0.004, fo = o.fadeOut || 0.01;
+  const src = ctx.createBufferSource(); src.buffer = buf; src.playbackRate.value = rate;
+  const g = ctx.createGain(); g.gain.setValueAtTime(0, at); g.gain.linearRampToValueAtTime(lv, at + fi); g.gain.setValueAtTime(lv, at + Math.max(fi, d - fo)); g.gain.linearRampToValueAtTime(0, at + d);
+  src.connect(g); g.connect(o.far ? far : voice); src.start(at, off, len);
+  if (!o.far) { voiceFree = at + d; const n = {src, g}; LIVE.add(n); src.onended = () => LIVE.delete(n); }
+  return {at, d, end: at + d - ctx.currentTime};
+}
 function say(clip, opts = {}) {
   const buf = bufs.get(clip.id); if (!buf) return 0;
-  const src = ctx.createBufferSource(); src.buffer = buf;
-  const rate = opts.rate || 1; src.playbackRate.value = rate;
-  const g = ctx.createGain(); g.gain.value = opts.level == null ? 1 : opts.level;
-  src.connect(g); g.connect(opts.far ? far : voice); src.start();
-  const d = buf.duration / rate;
+  const rate = opts.rate || 1, p = play(buf, {rate, level: opts.level, far: opts.far, queue: !opts.far}), d = p.end;
   markOutput(d * 1000 + 80);
   if (!opts.far) lastSoundEnd = Date.now() + d * 1000;
   recent.push(clip.id); if (recent.length > 7) recent.shift();
   return d;
 }
 // Pick a real call that suits the moment: near the bird's pitch, not one just used, and more often the ones your bird answers.
-function choose(kind, pitch) {
-  let pool = LIB.calls.filter(c => bufs.has(c.id) && c.kind === kind && !recent.includes(c.id));
-  if (!pool.length) pool = LIB.calls.filter(c => bufs.has(c.id) && c.kind === kind);
+// Near calls come from the clean, close recordings (one bird, no flock behind it); the rest are kept for the distant flock.
+const CLEAN = new Set(['609245', '597623', '593111']);
+function choose(kind, pitch, any) {
+  const ok = c => bufs.has(c.id) && c.kind === kind && (any || CLEAN.has(c.xc) || !LIB.calls.some(d => d.kind === kind && CLEAN.has(d.xc)));
+  let pool = LIB.calls.filter(c => ok(c) && !recent.includes(c.id));
+  if (!pool.length) pool = LIB.calls.filter(ok);
   if (!pool.length) return null;
   const scored = pool.map(c => ({c, s: Math.abs(Math.log(c.pitch / pitch)) * 5 - Math.log1p(S.fav[c.id] || 0) * 0.3 + Math.random() * 0.45}));
   scored.sort((a, b) => a.s - b.s);
@@ -94,30 +112,41 @@ function warble(o = {}) {
     for (const c of LIB.calls) { const N = c.notes || []; if (N.length < (c.kind === 'own' ? 1 : 2)) continue;
       for (let i = 0; i < N.length; i++) for (let j = i + 1; j < N.length; j++) { const a = Math.max(0, N[i][0] - 0.03), b = Math.min(c.dur, N[j][1] + 0.06); if (b - a > 3.2) break; RUNS.push({c, a, b, n: j - i + 1}); } }
   }
-  // with "your bird's own warble" on, Perchy warbles in your bird's voice a little over half the time, otherwise in a wild bird's
+  // One bird at a time: a warble comes from one recording (one bird at one distance), in your bird's own voice or a wild
+  // bird's, never both at once, and the runs follow one another without overlapping.
   const own = RUNS.filter(r => bufs.has(r.c.id) && r.c.kind === 'own'), wild = RUNS.filter(r => bufs.has(r.c.id) && r.c.kind !== 'own');
   if (!own.length && !wild.length) return 0;
-  const useOwn = S.set.ownVoice && own.length > 0, lean = rand(0.35, 0.75);   // how much of this warble is in your bird's voice
-  const target = o.pitch || S.pitch, want = o.sec || rand(1.2, 2.4), lvl = o.level == null ? 0.7 : o.level, t0 = ctx.currentTime + 0.03;
-  let t = 0, last = null;
-  for (let k = 0; k < 3 && t < want - 0.4; k++) {
-    // a run that fits the time left and is near the wanted pitch, from a different recording than the last one
-    const ok = useOwn && (Math.random() < lean || !wild.length) ? own : wild.length ? wild : own;
-    const left = want - t, fit = ok.filter(r => r.c !== (last && last.c) && r.b - r.a <= left + 0.5 && r.b - r.a >= Math.min(0.6, left));
+  const songRuns = songVoice() ? songBouts(0.5, 3.2) : [];
+  let ok = songRuns.length ? songRuns : S.set.ownVoice && own.length && (Math.random() < 0.55 || !wild.length) ? own : wild.length ? wild : own;
+  if (ok === wild) { const xc = o.xc && wild.some(r => r.c.xc === o.xc) ? o.xc : pick(wild).c.xc; ok = wild.filter(r => r.c.xc === xc); }
+  const target = o.pitch || S.pitch, want = o.sec || rand(1.2, 2.4), lvl = o.level == null ? 0.7 : o.level, start = Math.max(ctx.currentTime + 0.03, voiceFree);
+  let last = null, end = start;
+  for (let k = 0; k < 3 && end - start < want - 0.4; k++) {
+    const left = want - (end - start), fit = ok.filter(r => r !== last && r.b - r.a <= left + 0.5 && r.b - r.a >= Math.min(0.6, left));
     const pool = fit.length ? fit : ok; let r = pick(pool);
-    for (let i = 0; i < 10 && Math.abs(Math.log(r.c.pitch / target)) > 0.08; i++) r = pick(pool);
+    for (let i = 0; i < 10 && r.c.pitch && Math.abs(Math.log(r.c.pitch / target)) > 0.08; i++) r = pick(pool);
     last = r;
-    // a little different every time: wild notes lean toward your bird's pitch, your bird's own song sometimes drops a touch lower and slower
-    const rate = r.c.kind === 'own' ? (Math.random() < 0.3 ? rand(0.9, 0.96) : rand(0.97, 1.04)) : clamp(target / r.c.pitch, 0.95, 1.05) * rand(0.98, 1.02), len = r.b - r.a, d = len / rate, s0 = t0 + t, lv = lvl * rand(0.8, 1);
-    const src = ctx.createBufferSource(); src.buffer = bufs.get(r.c.id); src.playbackRate.value = rate;
-    const g = ctx.createGain(); g.gain.setValueAtTime(0, s0); g.gain.linearRampToValueAtTime(lv, s0 + 0.03); g.gain.setValueAtTime(lv, s0 + d - 0.06); g.gain.linearRampToValueAtTime(0, s0 + d);
-    src.connect(g); g.connect(voice); src.start(s0, r.a, len);
-    t += d + (Math.random() < 0.6 ? rand(-0.04, 0.12) : rand(0.25, 0.5));   // mostly runs straight on, sometimes a short breath
+    const rate = r.song ? rand(0.98, 1.02) : r.c.kind === 'own' ? (Math.random() < 0.3 ? rand(0.9, 0.96) : rand(0.97, 1.04)) : clamp(target / r.c.pitch, 0.95, 1.05) * rand(0.98, 1.02);
+    voiceFree = Math.max(voiceFree, end + (k ? (Math.random() < 0.7 ? rand(0.03, 0.12) : rand(0.25, 0.5)) : 0));
+    const p = play(r.song ? r.song.buf : bufs.get(r.c.id), {off: r.a, len: r.b - r.a, rate, level: lvl * rand(0.8, 1), fadeIn: 0.03, fadeOut: 0.06});
+    end = p.at + p.d;
   }
   // now and then a budgie slips a word it has picked up into its warble
-  if (o.words !== false && PHRASES.length && Math.random() < 0.22) t += sayPhrase(null, {at: t0 + t + rand(0.05, 0.3) - ctx.currentTime, level: lvl * 1.1}) + 0.3;
+  if (o.words !== false && PHRASES.length && Math.random() < 0.22) { voiceFree += rand(0.05, 0.3); sayPhrase(null, {level: lvl * 1.1, queued: true}); end = voiceFree; }
+  const t = end - ctx.currentTime;
   markOutput(t * 1000 + 80); lastSoundEnd = Date.now() + t * 1000;
   return t;
+}
+// A run of single clean notes from one close bird: a two- to four-note call, or a burst of chatter, each note a touch different
+function chirpRun(n, target, lvl) {
+  let d = 0;
+  for (let i = 0; i < n; i++) {
+    const c = choose('chirp', target * rand(0.92, 1.08)); if (!c) break;
+    if (i) voiceFree += Math.random() < 0.8 ? rand(0.05, 0.14) : rand(0.2, 0.32);
+    const p = play(bufs.get(c.id), {rate: clamp(target / c.pitch, 0.93, 1.07) * rand(0.98, 1.02), level: lvl * rand(0.8, 1)});
+    d = p.end; recent.push(c.id); if (recent.length > 7) recent.shift();
+  }
+  markOutput(d * 1000 + 80); lastSoundEnd = Date.now() + d * 1000; return d;
 }
 const isWarble = f => f.dur > 1.1 || f.syl >= 4;
 
@@ -129,10 +158,10 @@ const isWarble = f => f.dur > 1.1 || f.syl >= 4;
 // The plain recording is kept too, so the "deeper to higher" slider can remake every phrase. Everything stays on this device.
 const VOICE_V = 3;   // bump when the budgie voice changes, so kept recordings are remade in the new voice
 let PHRASES = [];   // {id, text, buf, raw}: buf is the budgie version, raw your plain recording
-const DB = {db: null, open() { return this.db || (this.db = new Promise(res => { try { const r = indexedDB.open('perchy', 1); r.onupgradeneeded = () => r.result.createObjectStore('phrases', {keyPath: 'id'}); r.onsuccess = () => res(r.result); r.onerror = () => res(null); } catch (e) { res(null); } })); },
-  async all() { const db = await this.open(); if (!db) return []; return new Promise(res => { const q = db.transaction('phrases').objectStore('phrases').getAll(); q.onsuccess = () => res(q.result || []); q.onerror = () => res([]); }); },
-  async put(v) { const db = await this.open(); if (db) db.transaction('phrases', 'readwrite').objectStore('phrases').put(v); },
-  async del(id) { const db = await this.open(); if (db) db.transaction('phrases', 'readwrite').objectStore('phrases').delete(id); }};
+const DB = {db: null, open() { return this.db || (this.db = new Promise(res => { try { const r = indexedDB.open('perchy', 2); r.onupgradeneeded = () => { for (const n of ['phrases', 'songs']) if (!r.result.objectStoreNames.contains(n)) r.result.createObjectStore(n, {keyPath: 'id'}); }; r.onsuccess = () => res(r.result); r.onerror = () => res(null); } catch (e) { res(null); } })); },
+  async all(n = 'phrases') { const db = await this.open(); if (!db) return []; return new Promise(res => { try { const q = db.transaction(n).objectStore(n).getAll(); q.onsuccess = () => res(q.result || []); q.onerror = () => res([]); } catch (e) { res([]); } }); },
+  async put(v, n = 'phrases') { const db = await this.open(); if (!db) return false; return new Promise(res => { try { const t = db.transaction(n, 'readwrite'); t.objectStore(n).put(v); t.oncomplete = () => res(true); t.onerror = t.onabort = () => res(false); } catch (e) { res(false); } }); },
+  async del(id, n = 'phrases') { const db = await this.open(); if (db) db.transaction(n, 'readwrite').objectStore(n).delete(id); }};
 async function budgify(buf, high = st.phraseHigh) {
   const sr = 44100, d = buf.getChannelData(0), H = clamp(high == null ? 0.15 : high, 0, 1), mix = (x, y) => x + (y - x) * H;
   let pk = 0; for (let i = 0; i < d.length; i++) pk = Math.max(pk, Math.abs(d[i]));
@@ -185,10 +214,8 @@ async function budgify(buf, high = st.phraseHigh) {
 }
 function sayPhrase(p, o = {}) {
   if (!PHRASES.length || !ctx) return 0; p = p || pick(PHRASES);
-  const src = ctx.createBufferSource(); src.buffer = p.buf; src.playbackRate.value = rand(0.97, 1.04);
-  const g = ctx.createGain(); g.gain.value = o.level == null ? 0.8 : o.level; src.connect(g); g.connect(voice);
-  src.start(ctx.currentTime + Math.max(0, o.at || 0)); const d = p.buf.duration / src.playbackRate.value;
-  if (!o.at) { markOutput(d * 1000 + 80); lastSoundEnd = Date.now() + d * 1000; }
+  const q = play(p.buf, {rate: rand(0.97, 1.04), level: o.level == null ? 0.8 : o.level, fadeIn: 0.01, fadeOut: 0.02}), d = q.end;
+  if (!o.queued) { markOutput(d * 1000 + 80); lastSoundEnd = Date.now() + d * 1000; }
   return d;
 }
 function renderPhrases() {
@@ -240,6 +267,89 @@ async function recDone() {
   } catch (e) { toast(e.message === 'short' ? 'Hold the button while you speak' : "That recording didn't work. Try again"); }
   Rec.busy = false; Rec.listening = false; $('#recBtn').textContent = 'Record';
 }
+
+// ---------- songs you add, and singing ----------
+// Budgie videos grab a lone bird's attention because they are one close bird singing on and on. You can add the sound of one
+// your bird loves (or any recording of a budgie): Perchy sings from it in long stretches, and if you like, answers in its voice.
+// It is kept on this device only, at 32 kHz, up to four minutes each and four recordings.
+let SONGS = [];   // {id, name, buf, bouts: [[a, b]] (song stretches), notes: [[a, b]] (single notes)}
+const songVoice = () => !!S.set.songVoice && SONGS.length > 0;
+function songBouts(min, max) {
+  const out = [];
+  for (const s of SONGS) for (const [a, b] of (max <= 0.9 ? s.notes : s.bouts)) {
+    if (b - a >= min && b - a <= max) out.push({song: s, a: Math.max(0, a - 0.02), b: b + 0.05, c: {}});
+    else if (b - a > max) for (let k = 0; k < 3; k++) { const l = rand(Math.max(min, max * 0.5), max), x = a + rand(0, b - a - l); out.push({song: s, a: x, b: x + l, c: {}}); }
+  }
+  return out;
+}
+async function analyzeSong(buf) {
+  // where the bird is: energy in the budgie range (1.2 to 7 kHz), in 10 ms steps, against the recording's own quiet level
+  const sr = 16000, oc = new OfflineAudioContext(1, Math.ceil(buf.duration * sr), sr), src = oc.createBufferSource(); src.buffer = buf;
+  let n = src; for (const [t, f] of [['highpass', 1200], ['highpass', 1200], ['lowpass', 7000]]) { const b = oc.createBiquadFilter(); b.type = t; b.frequency.value = f; n.connect(b); n = b; }
+  n.connect(oc.destination); src.start();
+  const x = (await oc.startRendering()).getChannelData(0), F = 160, N = Math.floor(x.length / F), db = new Float32Array(N);
+  for (let i = 0; i < N; i++) { let e = 0; for (let j = i * F; j < i * F + F; j++) e += x[j] * x[j]; db[i] = 10 * Math.log10(e / F + 1e-12); }
+  const sorted = Array.from(db).sort((a, b) => a - b), floor = sorted[Math.floor(N * 0.2)], top = sorted[Math.floor(N * 0.995)];
+  const thr = Math.max(floor + 9, top - 45), on = Array.from(db, v => v > thr);
+  const runs = gap => { const r = []; let a = -1, last = -99; for (let i = 0; i < N; i++) if (on[i]) { if (a < 0 || i - last > gap) { if (a >= 0) r.push([a, last + 1]); a = i; } last = i; } if (a >= 0) r.push([a, last + 1]); return r.filter(([p, q]) => q - p >= 4).map(([p, q]) => [p * F / sr, q * F / sr]); };
+  return {notes: runs(4), bouts: runs(30)};
+}
+async function toBuffer(rec) { const b = ctx.createBuffer(1, rec.pcm.length, rec.sr), d = b.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = rec.pcm[i] / 32767; return b; }
+async function loadSongs() { const rows = await DB.all('songs'); ensureAudio(); SONGS = []; for (const r of rows) SONGS.push({id: r.id, name: r.name, buf: await toBuffer(r), bouts: r.bouts, notes: r.notes}); renderSongs(); }
+async function addSong(file) {
+  ensureAudio(); const lab = $('#songAdd'); lab.textContent = 'Reading the recording…';
+  try {
+    const raw = await ctx.decodeAudioData(await file.arrayBuffer()), len = Math.min(raw.duration, 240), sr = 32000;
+    const oc = new OfflineAudioContext(1, Math.ceil(len * sr), sr), s = oc.createBufferSource(); s.buffer = raw; s.connect(oc.destination); s.start(0, 0, len);
+    const buf = await oc.startRendering(), d = buf.getChannelData(0); let pk = 0; for (let i = 0; i < d.length; i++) pk = Math.max(pk, Math.abs(d[i]));
+    const g = pk ? 0.9 / pk : 1, pcm = new Int16Array(d.length); for (let i = 0; i < d.length; i++) { d[i] *= g; pcm[i] = Math.round(d[i] * 32767); }
+    const {notes, bouts} = await analyzeSong(buf), sung = bouts.reduce((t, [a, b]) => t + b - a, 0);
+    if (sung < 3 || notes.length < 6) { toast("I couldn't hear much budgie song in that recording"); return; }
+    const id = 's' + Date.now().toString(36), name = (file.name || 'Recording').replace(/\.[^.]+$/, '').slice(0, 40);
+    const saved = await DB.put({id, name, sr, pcm, notes, bouts}, 'songs');
+    SONGS.push({id, name, buf, notes, bouts}); while (SONGS.length > 4) { DB.del(SONGS[0].id, 'songs'); SONGS.shift(); }
+    renderSongs(); toast(saved ? 'Added. Tap Sing to hear Perchy sing from it' : 'Added for now, but this browser would not keep it');
+  } catch (e) { toast("That file didn't open here. An mp3, m4a or a screen recording usually works"); }
+  finally { lab.textContent = 'Add a recording'; $('#songFile').value = ''; }
+}
+function renderSongs() {
+  const ul = $('#songList'); ul.innerHTML = '';
+  if (!SONGS.length) { const li = document.createElement('li'); li.innerHTML = '<span class="muted small">None added yet. Perchy sings from its wild recordings until you add one.</span>'; ul.append(li); return; }
+  for (const s of SONGS) {
+    const li = document.createElement('li'), t = document.createElement('span'); t.textContent = s.name + ' · ' + Math.round(s.buf.duration) + ' s';
+    const p = document.createElement('button'); p.className = 'btn'; p.textContent = '▶ Sing it'; p.onclick = () => { hush(); sing({song: s}); };
+    const del = document.createElement('button'); del.className = 'btn ghost'; del.textContent = 'Delete'; del.onclick = () => { hush(); SONGS = SONGS.filter(q => q !== s); DB.del(s.id, 'songs'); renderSongs(); };
+    li.append(t, p, del); ul.append(li);
+  }
+}
+// Sing: a long stretch of one bird singing, the way the videos do. From a recording you added if there is one (played as it is,
+// from a different spot each time), otherwise woven from one wild bird's warble with strings of clean notes and the odd pause.
+let singing = 0;   // Date.now() when the current song ends
+function singUi() { const on = Date.now() < singing; for (const b of ['#singBtn', '#singFsBtn']) { const e = $(b); if (!e) continue; e.classList.toggle('on', on); if (e.id === 'singBtn') e.textContent = on ? 'Stop singing' : 'Sing'; } }
+async function sing(o = {}) {
+  ensureAudio(); await loadSounds(); if (!bufs.size && !SONGS.length) return 0;
+  const len = o.sec || rand(30, 60), lvl = o.level == null ? 0.85 : o.level; let d;
+  const s = o.song || (SONGS.length ? pick(SONGS) : null);
+  if (s) {
+    const starts = s.bouts.map(b => b[0]).filter(a => a < s.buf.duration - 6), off = Math.max(0, (starts.length ? pick(starts) : 0) - 0.3);
+    d = play(s.buf, {off, len: Math.min(len, s.buf.duration - off), level: lvl, fadeIn: 0.3, fadeOut: 1.5}).end;
+  } else {
+    const xcs = (RUNS || []).filter(r => r.c.kind !== 'own').map(r => r.c.xc), xc = xcs.length ? pick(xcs) : null, start = Math.max(ctx.currentTime, voiceFree);
+    while (voiceFree - start < len) {
+      if (Math.random() < 0.7) warble({sec: rand(1.6, 3.2), level: lvl * rand(0.75, 1), words: Math.random() < 0.3, xc, pitch: S.pitch * rand(0.95, 1.05)});
+      else chirpRun(Math.round(rand(1, 5)), S.pitch * rand(0.92, 1.08), lvl * rand(0.7, 1));
+      voiceFree += Math.random() < 0.8 ? rand(0.06, 0.3) : rand(0.8, 2);
+      if (!RUNS) break;
+    }
+    d = voiceFree - ctx.currentTime;
+  }
+  markOutput(d * 1000 + 80); lastSoundEnd = Date.now() + d * 1000; singing = Date.now() + d * 1000; singUi(); setTimeout(singUi, d * 1000 + 50);
+  pending = {id: null, t: Date.now() + d * 1000}; Bird.startAct('bob', performance.now());
+  $('#lastReply').textContent = (s ? 'Sang from “' + s.name + '”' : 'Sang') + ' · ' + Math.round(d) + ' s';
+  setCap('Singing'); setTimeout(() => { if (awake && Date.now() >= singing) setCap(quietNow() ? 'Quiet hours' : 'Listening'); }, d * 1000 + 300);
+  return d;
+}
+const toggleSing = async () => { if (Date.now() < singing) hush(); else { await sing(); nextCallOut = Math.max(nextCallOut, singing + 30000); } };
 
 // ---------- quiet hours ----------
 function quietNow() {
@@ -377,6 +487,8 @@ function reply(f, tries = 0) {
     // burst: sometimes just listen, the way a flockmate would. If it has started again, wait for the next gap.
     if (Mic.cur && tries < 3) { setTimeout(() => reply(f, tries + 1), 500); return; }
     if (Mic.cur || Math.random() < 0.25) { $('#lastReply').textContent = 'Listening to your bird warble'; return; }
+    // a long warble sometimes gets a long song back: budgies often sing together
+    if (f.dur > 2.5 && Math.random() < 0.3) { sing({sec: rand(8, 18), level: rand(0.6, 0.8)}); return; }
     const d = warble({pitch: target, sec: clamp(f.dur * rand(0.5, 1), 0.8, 3), level: rand(0.5, 0.75)});
     pending = {id: null, t: Date.now() + d * 1000};
     if (Math.random() < 0.4) setTimeout(() => Bird.startAct('bob', performance.now()), rand(200, 600));
@@ -388,6 +500,19 @@ function reply(f, tries = 0) {
   let kind = (f.dur < 0.5 && f.syl <= 2) ? 'chirp' : 'phrase';
   if (kind === 'chirp' && Math.random() < 0.3) kind = 'phrase';
   if (streak >= 3 && Math.random() < 0.35) kind = 'chatter';
+  // in your recording's voice, if you added one and chose that
+  const sh = songVoice() ? songBouts(0.04, kind === 'chirp' ? 0.35 : 0.9) : [];
+  if (sh.length >= 4) {
+    const r = pick(sh), d = play(r.song.buf, {off: r.a, len: r.b - r.a, rate: rand(0.98, 1.02), level: rand(0.8, 1), fadeIn: 0.01, fadeOut: 0.03}).end;
+    markOutput(d * 1000 + 80); lastSoundEnd = Date.now() + d * 1000; pending = {id: null, t: Date.now() + d * 1000};
+    $('#lastReply').textContent = 'Answered in your recording\'s voice · ' + d.toFixed(2) + ' s'; setCap('Answering'); return;
+  }
+  // a longer call or chatter is often a few clean notes from the same close bird, strung together the way budgies do
+  if (kind !== 'chirp' && Math.random() < 0.6) {
+    const d = chirpRun(kind === 'chatter' ? Math.round(rand(4, 7)) : Math.round(rand(2, 4)), target, rand(0.8, 1)); pending = {id: null, t: Date.now() + d * 1000};
+    $('#lastReply').textContent = (kind === 'chatter' ? 'Chatter' : 'Phrase') + ' of single notes · ' + d.toFixed(2) + ' s'; setCap('Answering');
+    setTimeout(() => { if (awake) setCap(quietNow() ? 'Quiet hours' : 'Listening'); }, d * 1000 + 700); return;
+  }
   const clip = choose(kind, target) || choose('chirp', target); if (!clip) return;
   const rate = clamp(target / clip.pitch, 0.95, 1.05); // lean a little toward your bird's pitch, as flockmates do
   const d = say(clip, {rate, level: rand(0.8, 1)});
@@ -406,6 +531,8 @@ function callOut(manual) {
     const d = sayPhrase(null, {level: rand(0.55, 0.75)}); pending = {id: null, t: Date.now() + d * 1000}; missedCallOuts++;
     $('#lastReply').textContent = 'Said one of your phrases · ' + d.toFixed(2) + ' s'; return;
   }
+  // and now and then, in high spirits, a long song, the thing that most draws a lone budgie in
+  if ((mood === 'social' || mood === 'playful') && Math.random() < 0.2) { sing({sec: rand(20, 40), level: rand(0.6, 0.8)}); missedCallOuts++; return; }
   if ((mood === 'social' || mood === 'playful') && Math.random() < 0.45) {
     const d = warble({sec: rand(1, 2.2), level: rand(0.35, 0.55)}); pending = {id: null, t: Date.now() + d * 1000}; missedCallOuts++;
     $('#lastReply').textContent = 'Warbled to itself · ' + d.toFixed(2) + ' s'; return;
@@ -485,7 +612,12 @@ $('#sens').value = st.sens; $('#sens').oninput = e => { st.sens = +e.target.valu
 const bind = (id, key, after) => { $(id).checked = st[key]; $(id).onchange = e => { st[key] = e.target.checked; save(); if (after) after(st[key]); }; };
 bind('#answerBack', 'answer'); bind('#callOut', 'callOut', on => { if (on) scheduleCallOut(); });
 bind('#bgFlock', 'flock', on => { if (on) nextFlock = Date.now() + 8000; });
-bind('#ownVoice', 'ownVoice');
+bind('#ownVoice', 'ownVoice'); bind('#songVoice', 'songVoice');
+$('#songFile').onchange = e => { const f = e.target.files && e.target.files[0]; if (f) addSong(f); };
+$('#singBtn').onclick = toggleSing;
+$('#singFsBtn').addEventListener('pointerdown', e => { e.preventDefault(); toggleSing(); });
+$('#singFsBtn').addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleSing(); } });
+loadSongs();
 // Record: tap to start and tap again to stop, or hold it down while you speak and let go
 { const b = $('#recBtn'); let downAt = 0, wasOn = false;
   b.addEventListener('pointerdown', e => { e.preventDefault(); downAt = Date.now(); wasOn = !!Rec.mr; if (!wasOn) recStart(); });
@@ -574,7 +706,7 @@ async function touched(e) {
   const r = $('#stage').getBoundingClientRect(), x = (e.clientX - r.left) / r.width, y = (e.clientY - r.top) / r.height;
   if (!awake) { if (Date.now() > touchBusy) { touchBusy = Date.now() + 1500; wake(); } return; }
   Bird.touch((x - 0.5) * 2, (y - 0.36) * 2);
-  if (Date.now() < touchBusy) return;
+  if (Date.now() < touchBusy || Date.now() < singing) return;   // mid-song it just looks; the song carries on
   touchBusy = Date.now() + 1200; await loadSounds(); if (!awake || !bufs.size) return;
   const clip = choose(Math.random() < 0.75 ? 'chirp' : 'phrase', S.pitch); if (!clip) return;
   const d = say(clip, {level: 0.95, rate: rand(0.98, 1.02)});
@@ -659,4 +791,4 @@ setBg(st.bg || '');
 fillControls(Bird.getSpec()); renderBirds();
 showBird(st.show); renderTiles(); setStatus();
 setInterval(tick, 1000);
-window.__perchy = {S, Mic, LIB, Bird, warble, callOut, loadSounds, budgify, sayPhrase, phrases: () => PHRASES, out: () => voice, ctx: () => ctx, state: () => ({awake, streak, heard: S.n, answered: S.answered, lastCall: $('#lastCall').textContent, lastReply: $('#lastReply').textContent})};
+window.__perchy = {S, Mic, LIB, Bird, warble, sing, hush, songs: () => SONGS, addSong, chirpRun, reply, callOut, loadSounds, budgify, sayPhrase, phrases: () => PHRASES, out: () => voice, ctx: () => ctx, state: () => ({awake, streak, heard: S.n, answered: S.answered, lastCall: $('#lastCall').textContent, lastReply: $('#lastReply').textContent})};
