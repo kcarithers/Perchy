@@ -378,7 +378,7 @@ const Bird = (() => {
     // yawn: a breath in, the neck stretches up, the beak opens wide and holds with the eyes squeezed, then shuts and the bird swallows
     yawn: {make() { const hold = rr(0.45, 1); return {dur: 1.75 + hold, hold, twist: rr(-9, 9)}; },
       run(a, p, o) { const t = p * a.dur, k = sstep(0.3, 0.95, t) * (1 - sstep(0.95 + a.hold, 1.4 + a.hold, t)), ant = bump(t, 0, 0.42), tr = Math.sin(t * 38) * 0.03 * k;
-        o.jaw = (3.5 + tr) * k + 0.2 * bump(t, a.dur - 0.33, a.dur - 0.08); o.hpitch -= 24 * k + 3 * ant; o.hroll += a.twist * k; o.hy += 5 * k + 1.2 * ant; o.hz += 2 * k; o.by += 1 * k; o.bpitch -= 3 * k; o.lid = sstep(0.35, 0.75, k); o.fluffAdd += 0.22 * k; o.throat = 0.5 * k; o.by += 0.8 * ant; } },
+        o.jaw = (2.4 + tr) * k + 0.2 * bump(t, a.dur - 0.33, a.dur - 0.08); o.hpitch -= 14 * k + 3 * ant; o.hroll += a.twist * 0.6 * k; o.hy += 3.4 * k + 1.2 * ant; o.hz += 2.4 * k; o.by += 1 * k; o.bpitch -= 3 * k; o.lid = sstep(0.35, 0.75, k); o.fluffAdd += 0.34 * k; o.throat = 0.5 * k; o.by += 0.8 * ant; } },
     // the one-sided stretch: weight goes onto the other foot, the wing opens from the shoulder outward with the tail fanned toward it and the leg on that side drawn up, a held tremble, then it folds from the tip in
     spread: {make() { const hold = rr(0.5, 1.3); return {dur: 2.5 + hold, hold, side: rnd() < 0.5 ? -1 : 1, amp: rr(0.86, 1)}; },
       run(a, p, o) { const t = p * a.dur, s = a.side, k = ease(sstep(0.3, 1.25, t)) * (1 - ease(sstep(1.25 + a.hold, a.dur - 0.1, t))), ant = bump(t, 0, 0.45), tr = bump(t, 1.1, 1.4 + a.hold) * Math.sin(t * 31) * 0.035;
@@ -602,6 +602,7 @@ const Bird = (() => {
     // the eye's own "up" and "forward" on the head, as they fall on the screen
     let ux = m[1], uy = m[4], fx = m[2] * 0.8 - m[0] * f.side * 0.6, fy = m[5] * 0.8 - m[3] * f.side * 0.6;
     const fl = Math.max(0.3, Math.hypot(fx, fy)), ul = Math.max(0.5, Math.hypot(ux, uy)); if (Math.hypot(fx, fy) < 0.3) { fx = 0.3; fy = 0; } if (Math.hypot(ux, uy) < 0.5) { ux = 0; uy = 0.5; }
+    { const sq = 1 - 0.45 * sstep(0.6, 1, lid); ux *= sq; uy *= sq; }                              // shut tight, the eye is a narrow slit, not a disc
     g.setTransform(fx * R, -fy * R, -ux * R, uy * R, X, Y); g.globalAlpha = a;      // local y points down the head
     const SKIN = [176, 184, 204], skinD = [128, 136, 160];        // a budgie's lid skin is pale blue-grey whatever colour its feathers are
     // the soft shadow the eyeball throws on the feathers below it
@@ -662,7 +663,7 @@ const Bird = (() => {
   const quads = []; let UA = 0, UC = 1, US = 0; const UH = [3.4, 13.0], upr = (y, z) => { const dy = y - UH[0], dz = z - UH[1]; return [UH[0] + dy * UC + dz * US, UH[1] - dy * US + dz * UC]; };
   function drawBeak() {
     const s = spec.size, ss = s * sc, HX = LX, HY = LY, HZ = LZ + 1, hl = Math.hypot(HX, HY, HZ), cere = hex(spec.cere);
-    quads.length = 0; UA = clamp(ch.jaw.x * 8.5, 0, 32) * RAD; UC = Math.cos(UA); US = Math.sin(UA);
+    quads.length = 0; UA = clamp(ch.jaw.x * 5 + 19 * sstep(0.9, 2.3, ch.jaw.x), 0, 33) * RAD; UC = Math.cos(UA); US = Math.sin(UA);   // a little for a chirp, a lot for a yawn
     for (const ms of MESH) {
       const b = M[ms.bone], m = b.m, w = ms.w, col = ms.col || cere, up1 = ms.bone === 1;       // the cere is part of the upper beak: both swing up and out together on a hinge at the forehead when the beak opens
       for (let i = 0; i < ms.v.length; i++) { let v = ms.v[i]; if (up1 && UA) { const q = upr(v[1], v[2]), n = [v[4] * UC + v[5] * US, -v[4] * US + v[5] * UC]; v = [v[0], q[0], q[1], v[3], n[0], n[1]]; } const x = v[0] * HS, y = v[1] * HS, z = v[2] * HS;
@@ -694,13 +695,13 @@ const Bird = (() => {
       P.sort((a, b2) => a[0] - b2[0] || a[1] - b2[1]); const cr = (o, a, b2) => (a[0] - o[0]) * (b2[1] - o[1]) - (a[1] - o[1]) * (b2[0] - o[0]), H = [];
       for (const q of P) { while (H.length >= 2 && cr(H[H.length - 2], H[H.length - 1], q) <= 0) H.pop(); H.push(q); } const lo = H.length + 1;
       for (let i = P.length - 2; i >= 0; i--) { const q = P[i]; while (H.length >= lo && cr(H[H.length - 2], H[H.length - 1], q) <= 0) H.pop(); H.push(q); }
-      g.fillStyle = css(mixc([138, 124, 62], [58, 26, 30], clamp(ch.jaw.x * 2.5, 0, 1)), 0.97); g.beginPath(); g.moveTo(H[0][0], H[0][1]); for (const q of H) g.lineTo(q[0], q[1]); g.closePath(); g.fill();
+      { const m = M[1].m, t0 = M[1].t, tx = cx + (t0[0] + s * (m[1] * -8.9 + m[2] * 10.6) * HS) * sc, ty = cy - (t0[1] + s * (m[4] * -8.9 + m[5] * 10.6) * HS) * sc, rr2 = 9 * HS * ss, mg = g.createRadialGradient(tx, ty, 0, tx, ty, rr2), k2 = clamp(ch.jaw.x * 2.5, 0, 1); mg.addColorStop(0, css(mixc([138, 124, 62], [58, 16, 26], k2), 0.97)); mg.addColorStop(0.6, css(mixc([138, 124, 62], [136, 44, 62], k2), 0.97)); mg.addColorStop(1, css(mixc([138, 124, 62], [172, 80, 92], k2), 0.97)); g.fillStyle = mg; } g.beginPath(); g.moveTo(H[0][0], H[0][1]); for (const q of H) g.lineTo(q[0], q[1]); g.closePath(); g.fill();
       if (ch.jaw.x > 0.3) {                                      // the tongue: rooted at the back of the mouth and pointing out between the two beaks, thick at the root and blunt at the tip
         const al = clamp((ch.jaw.x - 0.3) * 2.2, 0, 1), tp = (b, x, y, z) => { const m = b.m, t = b.t; x *= HS; y *= HS; z *= HS; return [cx + (t[0] + s * (m[0] * x + m[1] * y + m[2] * z)) * sc, cy - (t[1] + s * (m[3] * x + m[4] * y + m[5] * z)) * sc]; };
-        const uq = upr(-10.4, 15), U = tp(M[1], 0, uq[0], uq[1]), L = tp(M[2], 0, -8.6, 15.2), A = tp(M[1], 0, -8.9, 10.6), C = [A[0] + 0.7 * ((U[0] + L[0]) / 2 - A[0]), A[1] + 0.7 * ((U[1] + L[1]) / 2 - A[1])];
-        const dx = C[0] - A[0], dy = C[1] - A[1], ln = Math.hypot(dx, dy) || 1, nx = -dy / ln, ny = dx / ln, wb = 1.9 * HS * ss, wt = 1.05 * HS * ss;
+        const uq = upr(-10.4, 15), U = tp(M[1], 0, uq[0], uq[1]), L = tp(M[2], 0, -8.6, 15.2), A = tp(M[1], 0, -8.9, 10.6), C = [A[0] + 0.66 * (U[0] * 0.25 + L[0] * 0.75 - A[0]), A[1] + 0.66 * (U[1] * 0.25 + L[1] * 0.75 - A[1])];
+        const dx = C[0] - A[0], dy = C[1] - A[1], ln = Math.hypot(dx, dy) || 1, nx = -dy / ln, ny = dx / ln, wb = 2.2 * HS * ss, wt = 1.6 * HS * ss;
         g.save(); g.clip(); g.globalAlpha = al;
-        const tg = g.createLinearGradient(A[0], A[1], C[0], C[1]); tg.addColorStop(0, '#6e3a42'); tg.addColorStop(0.55, '#b77c82'); tg.addColorStop(1, '#c79296');
+        const tg = g.createLinearGradient(A[0], A[1], C[0], C[1]); tg.addColorStop(0, '#7c3c48'); tg.addColorStop(0.5, '#c4868f'); tg.addColorStop(1, '#dba6ad');
         g.fillStyle = tg; g.beginPath(); g.moveTo(A[0] + nx * wb, A[1] + ny * wb); g.lineTo(C[0] + nx * wt, C[1] + ny * wt); g.arc(C[0], C[1], wt, Math.atan2(ny, nx), Math.atan2(-ny, -nx), true); g.lineTo(A[0] - nx * wb, A[1] - ny * wb); g.closePath(); g.fill();
         g.strokeStyle = 'rgba(236,206,206,.35)'; g.lineWidth = wt * 0.5; g.lineCap = 'round'; g.beginPath(); g.moveTo(A[0] + dx * 0.55, A[1] + dy * 0.55); g.lineTo(A[0] + dx * 0.95, A[1] + dy * 0.95); g.stroke();
         g.restore();
