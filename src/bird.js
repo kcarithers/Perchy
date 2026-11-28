@@ -650,7 +650,7 @@ const Bird = (() => {
     grid(2, [200, 182, 96], 14, 20, (u, q) => {                   // lower mandible: a small cup tucked under the hook
       const la = (-88 + 150 * u) * RAD, lo = (-92 + 184 * q) * RAD, d = [Math.sin(lo) * Math.cos(la), Math.sin(la), Math.cos(lo) * Math.cos(la)];
       const fw = Math.max(0, d[2]), tp = 1 - 0.55 * fw * fw;      // a scoop that narrows and shallows toward its front, which tucks in behind the hook
-      return [d[0] * 3.0 * tp, -8.3 + (d[1] > 0 ? d[1] * 1.2 : d[1] * 2.8 * tp), 13.2 + d[2] * 3.5, ...norm([d[0] / 4.6, d[1] / 3.6, d[2] / 3.6])];
+      return [d[0] * 3.0 * tp, -8.3 + (d[1] > 0 ? d[1] * 1.2 : d[1] * 2.8 * tp), 13.6 + d[2] * 3.5, ...norm([d[0] / 4.6, d[1] / 3.6, d[2] / 3.6])];
     });
     grid(1, null, 22, 44, (u, q) => {                            // cere: one fleshy band saddling the top of the beak, flattish in front, a shallow groove down its middle and its lower edge dipping at the sides
       const la = (-80 + 170 * u) * RAD, lo = (-100 + 200 * q) * RAD, cl = Math.pow(Math.cos(la), 0.5), sl = Math.sin(la), d = [Math.sin(lo) * cl, sl, Math.cos(lo) * cl];
@@ -688,13 +688,13 @@ const Bird = (() => {
     }
     quads.sort((p, q) => p.z - q.z);
     g.setTransform(1, 0, 0, 1, 0, 0); g.lineJoin = 'round';
-    if (ch.jaw.x > 0.05) {                                       // the open mouth: one dark shape running from the corners of the mouth, under the upper beak, down to the rim of the lower one
-      const P = [], ptu = (x, y, z) => { const q = upr(y, z); pt(M[1], x, q[0], q[1]); }, pt = (b, x, y, z) => { const m = b.m, t = b.t; x *= HS; y *= HS; z *= HS; P.push([cx + (t[0] + s * (m[0] * x + m[1] * y + m[2] * z)) * sc, cy - (t[1] + s * (m[3] * x + m[4] * y + m[5] * z)) * sc]); };
-      for (const sd of [-1, 1]) { pt(M[1], sd * 3.1, -8.7, 11.6); ptu(sd * 2.7, -9.3, 14.2); ptu(sd * 1.2, -11.2, 16); pt(M[2], sd * 2.4, -9, 12.4); pt(M[2], sd * 2.4, -9.2, 15.4); pt(M[2], 0, -9.6, 16.4); }
+    {                                                            // the space between the two beaks is never feathers: shut, it is horn in shadow; open, it is the dark mouth: one dark shape running from the corners of the mouth, under the upper beak, down to the rim of the lower one
+      const P = [], gp = clamp(ch.jaw.x * 2.5, 0, 1), ptu = (x, y, z) => { const q = upr(y, z); pt(M[1], x, q[0], q[1]); }, pt = (b, x, y, z) => { const m = b.m, t = b.t; x *= HS; y *= HS; z *= HS; P.push([cx + (t[0] + s * (m[0] * x + m[1] * y + m[2] * z)) * sc, cy - (t[1] + s * (m[3] * x + m[4] * y + m[5] * z)) * sc]); };
+      for (const sd of [-1, 1]) { pt(M[1], sd * lerp(2.2, 3.1, gp), -8.7, lerp(14.4, 11.6, gp)); ptu(sd * 2.7, -9.3, 14.2); ptu(sd * 1.2, -11.2, 16); ptu(sd * 0.4, -12.2, 16.1); ptu(sd * 3.2, -6.5, 15.5); pt(M[2], sd * 1.6, -10.6, 15.2); pt(M[2], sd * 2.2, -8.6, 16.2); pt(M[2], sd * 2.4, -9, lerp(14.4, 12.4, gp)); pt(M[2], sd * 2.4, -9.2, 15.4); pt(M[2], 0, -9.6, 16.4); }
       P.sort((a, b2) => a[0] - b2[0] || a[1] - b2[1]); const cr = (o, a, b2) => (a[0] - o[0]) * (b2[1] - o[1]) - (a[1] - o[1]) * (b2[0] - o[0]), H = [];
       for (const q of P) { while (H.length >= 2 && cr(H[H.length - 2], H[H.length - 1], q) <= 0) H.pop(); H.push(q); } const lo = H.length + 1;
       for (let i = P.length - 2; i >= 0; i--) { const q = P[i]; while (H.length >= lo && cr(H[H.length - 2], H[H.length - 1], q) <= 0) H.pop(); H.push(q); }
-      g.fillStyle = 'rgba(58,26,30,' + clamp(ch.jaw.x * 2.5, 0, 0.97).toFixed(3) + ')'; g.beginPath(); g.moveTo(H[0][0], H[0][1]); for (const q of H) g.lineTo(q[0], q[1]); g.closePath(); g.fill();
+      g.fillStyle = css(mixc([138, 124, 62], [58, 26, 30], clamp(ch.jaw.x * 2.5, 0, 1)), 0.97); g.beginPath(); g.moveTo(H[0][0], H[0][1]); for (const q of H) g.lineTo(q[0], q[1]); g.closePath(); g.fill();
       if (ch.jaw.x > 0.3) {                                      // the tongue: rooted at the back of the mouth and pointing out between the two beaks, thick at the root and blunt at the tip
         const al = clamp((ch.jaw.x - 0.3) * 2.2, 0, 1), tp = (b, x, y, z) => { const m = b.m, t = b.t; x *= HS; y *= HS; z *= HS; return [cx + (t[0] + s * (m[0] * x + m[1] * y + m[2] * z)) * sc, cy - (t[1] + s * (m[3] * x + m[4] * y + m[5] * z)) * sc]; };
         const uq = upr(-10.4, 15), U = tp(M[1], 0, uq[0], uq[1]), L = tp(M[2], 0, -8.6, 15.2), A = tp(M[1], 0, -8.9, 10.6), C = [A[0] + 0.7 * ((U[0] + L[0]) / 2 - A[0]), A[1] + 0.7 * ((U[1] + L[1]) / 2 - A[1])];
