@@ -433,7 +433,7 @@ const Bird = (() => {
     const d = headDir(th, ps), up = Math.max(0, d[1]), dn = Math.max(0, -d[1]);
     const fr = sstep(-0.25, 0.45, d[2]);
     const cw = CAP * capW(d);                                     // a show bird's forehead: the front of the crown swells up, out and forward over the cere
-    const rx = 14.5 * (1 + 0.06 * dn - 0.06 * up) * (1 + 0.12 * cw) + off, ry = (d[1] > 0 ? 16.8 * (1 + 0.26 * cw) : 21 + 7.2 * fr) + off, rz = (d[2] > 0 ? 17 * (1 - 0.04 * up - 0.24 * dn) * (1 + 0.3 * cw) : 19.5 * (1 + 0.1 * dn - 0.08 * up)) + off;
+    const rx = 13.4 * (1 + 0.06 * dn - 0.06 * up) * (1 + 0.12 * cw) + off, ry = (d[1] > 0 ? 16.8 * (1 + 0.26 * cw) : 21 + 7.2 * fr) + off, rz = (d[2] > 0 ? 17 * (1 - 0.04 * up - 0.24 * dn) * (1 + 0.3 * cw) : 19.5 * (1 + 0.1 * dn - 0.08 * up)) + off;
     const h = Math.max(1e-4, 1 - d[1] * d[1]), box = Math.pow(h, d[1] > 0 ? -0.16 : -0.3 * fr - 0.05);       // squares the dome's shoulders, and keeps the bib nearly as wide as the face
     return [d[0] * rx * box, d[1] * ry, d[2] * rz * (d[2] > 0 ? box : 1)];
   }
@@ -932,7 +932,7 @@ const Bird = (() => {
     grid(2, [200, 182, 96], 14, 20, (u, q) => {                   // lower mandible: a small cup tucked under the hook
       const la = (-88 + 150 * u) * RAD, lo = (-92 + 184 * q) * RAD, d = [Math.sin(lo) * Math.cos(la), Math.sin(la), Math.cos(lo) * Math.cos(la)];
       const fw = Math.max(0, d[2]), tp = 1 - 0.55 * fw * fw;      // a scoop that narrows and shallows toward its front, which tucks in behind the hook
-      return [d[0] * 2.15 * tp, -8.3 + (d[1] > 0 ? d[1] * 1.2 : d[1] * 2.2 * tp), 13.0 + d[2] * 3.1, ...norm([d[0] / 4.6, d[1] / 3.6, d[2] / 3.6])];
+      return [d[0] * 3.0 * tp, -8.3 + (d[1] > 0 ? d[1] * 1.2 : d[1] * 2.8 * tp), 13.2 + d[2] * 3.5, ...norm([d[0] / 4.6, d[1] / 3.6, d[2] / 3.6])];
     });
     grid(1, null, 22, 44, (u, q) => {                            // cere: one fleshy band saddling the top of the beak, flattish in front, a shallow groove down its middle and its lower edge dipping at the sides
       const la = (-80 + 170 * u) * RAD, lo = (-100 + 200 * q) * RAD, cl = Math.pow(Math.cos(la), 0.5), sl = Math.sin(la), d = [Math.sin(lo) * cl, sl, Math.cos(lo) * cl];
@@ -941,13 +941,13 @@ const Bird = (() => {
     });
     return out;
   })();
-  const quads = [];
+  const quads = []; let UA = 0, UC = 1, US = 0; const UH = [3.4, 13.0], upr = (y, z) => { const dy = y - UH[0], dz = z - UH[1]; return [UH[0] + dy * UC + dz * US, UH[1] - dy * US + dz * UC]; };
   function drawBeak() {
     const s = spec.size, ss = s * sc, HX = LX, HY = LY, HZ = LZ + 1, hl = Math.hypot(HX, HY, HZ), cere = hex(spec.cere);
-    quads.length = 0;
+    quads.length = 0; UA = clamp(ch.jaw.x * 8.5, 0, 32) * RAD; UC = Math.cos(UA); US = Math.sin(UA);
     for (const ms of MESH) {
-      const b = M[ms.bone], m = b.m, w = ms.w, col = ms.col || cere, lift = ms.bone === 1 ? ch.jaw.x * 0.65 : 0;       // the cere is part of the upper beak and rides with it
-      for (let i = 0; i < ms.v.length; i++) { const v = ms.v[i], x = v[0] * HS, y = v[1] * HS + lift, z = v[2] * HS;
+      const b = M[ms.bone], m = b.m, w = ms.w, col = ms.col || cere, up1 = ms.bone === 1;       // the cere is part of the upper beak: both swing up and out together on a hinge at the forehead when the beak opens
+      for (let i = 0; i < ms.v.length; i++) { let v = ms.v[i]; if (up1 && UA) { const q = upr(v[1], v[2]), n = [v[4] * UC + v[5] * US, -v[4] * US + v[5] * UC]; v = [v[0], q[0], q[1], v[3], n[0], n[1]]; } const x = v[0] * HS, y = v[1] * HS, z = v[2] * HS;
         w[i * 4] = cx + (b.t[0] + s * (m[0] * x + m[1] * y + m[2] * z)) * sc; w[i * 4 + 1] = cy - (b.t[1] + s * (m[3] * x + m[4] * y + m[5] * z)) * sc; w[i * 4 + 2] = m[6] * x + m[7] * y + m[8] * z;
         const nx = m[0] * v[3] + m[1] * v[4] + m[2] * v[5], ny = m[3] * v[3] + m[4] * v[4] + m[5] * v[5], nz = m[6] * v[3] + m[7] * v[4] + m[8] * v[5];
         w[i * 4 + 3] = nz < -0.15 ? -1 : Math.pow(0.5 + 0.5 * (nx * LX + ny * LY + nz * LZ), 0.9) + 2 * Math.floor(100 * Math.pow(Math.max(0, (nx * HX + ny * HY + nz * HZ) / hl), 26)); }
@@ -971,25 +971,27 @@ const Bird = (() => {
     quads.sort((p, q) => p.z - q.z);
     g.setTransform(1, 0, 0, 1, 0, 0); g.lineJoin = 'round';
     if (ch.jaw.x > 0.05) {                                       // the open mouth: one dark shape running from the corners of the mouth, under the upper beak, down to the rim of the lower one
-      const up = ch.jaw.x * 0.65, P = [], pt = (b, x, y, z) => { const m = b.m, t = b.t; x *= HS; y *= HS; z *= HS; P.push([cx + (t[0] + s * (m[0] * x + m[1] * y + m[2] * z)) * sc, cy - (t[1] + s * (m[3] * x + m[4] * y + m[5] * z)) * sc]); };
-      for (const sd of [-1, 1]) { pt(M[1], sd * 3.1, -8.7, 11.6); pt(M[1], sd * 2.7, -9.3 + up, 14.2); pt(M[1], sd * 1.2, -11.2 + up, 16); pt(M[2], sd * 2.4, -9, 12.4); pt(M[2], sd * 2.4, -9.2, 15.4); pt(M[2], 0, -9.6, 16.4); }
+      const P = [], ptu = (x, y, z) => { const q = upr(y, z); pt(M[1], x, q[0], q[1]); }, pt = (b, x, y, z) => { const m = b.m, t = b.t; x *= HS; y *= HS; z *= HS; P.push([cx + (t[0] + s * (m[0] * x + m[1] * y + m[2] * z)) * sc, cy - (t[1] + s * (m[3] * x + m[4] * y + m[5] * z)) * sc]); };
+      for (const sd of [-1, 1]) { pt(M[1], sd * 3.1, -8.7, 11.6); ptu(sd * 2.7, -9.3, 14.2); ptu(sd * 1.2, -11.2, 16); pt(M[2], sd * 2.4, -9, 12.4); pt(M[2], sd * 2.4, -9.2, 15.4); pt(M[2], 0, -9.6, 16.4); }
       P.sort((a, b2) => a[0] - b2[0] || a[1] - b2[1]); const cr = (o, a, b2) => (a[0] - o[0]) * (b2[1] - o[1]) - (a[1] - o[1]) * (b2[0] - o[0]), H = [];
       for (const q of P) { while (H.length >= 2 && cr(H[H.length - 2], H[H.length - 1], q) <= 0) H.pop(); H.push(q); } const lo = H.length + 1;
       for (let i = P.length - 2; i >= 0; i--) { const q = P[i]; while (H.length >= lo && cr(H[H.length - 2], H[H.length - 1], q) <= 0) H.pop(); H.push(q); }
       g.fillStyle = 'rgba(58,26,30,' + clamp(ch.jaw.x * 2.5, 0, 0.97).toFixed(3) + ')'; g.beginPath(); g.moveTo(H[0][0], H[0][1]); for (const q of H) g.lineTo(q[0], q[1]); g.closePath(); g.fill();
-      if (ch.jaw.x > 0.3) {                                      // the tongue: a short thick pink stub lying in the lower beak, its tip a little darker
-        const al = clamp((ch.jaw.x - 0.3) * 2.2, 0, 1), tp = (x, y, z) => { const b = M[2], m = b.m, t = b.t; x *= HS; y *= HS; z *= HS; return [cx + (t[0] + s * (m[0] * x + m[1] * y + m[2] * z)) * sc, cy - (t[1] + s * (m[3] * x + m[4] * y + m[5] * z)) * sc]; };
-        const A = tp(0, -8.6, 11.2), Bm = tp(0, -6.0, 12.6), C = tp(0, -6.3, 15.3), wd = 3.3 * HS * ss;
-        g.save(); g.globalAlpha = al; g.lineCap = 'round'; g.lineJoin = 'round';
-        g.strokeStyle = '#b8707a'; g.lineWidth = wd; g.beginPath(); g.moveTo(A[0], A[1]); g.quadraticCurveTo(Bm[0], Bm[1], C[0], C[1]); g.stroke();
-        g.strokeStyle = '#e0a0a8'; g.lineWidth = wd * 0.55; g.beginPath(); g.moveTo(A[0], A[1]); g.quadraticCurveTo(Bm[0], Bm[1] - wd * 0.12, C[0], C[1] - wd * 0.1); g.stroke();
-        g.fillStyle = 'rgba(96,58,66,.75)'; g.beginPath(); g.arc(C[0], C[1], wd * 0.3, 0, 7); g.fill(); g.restore();
+      if (ch.jaw.x > 0.3) {                                      // the tongue: rooted at the back of the mouth and pointing out between the two beaks, thick at the root and blunt at the tip
+        const al = clamp((ch.jaw.x - 0.3) * 2.2, 0, 1), tp = (b, x, y, z) => { const m = b.m, t = b.t; x *= HS; y *= HS; z *= HS; return [cx + (t[0] + s * (m[0] * x + m[1] * y + m[2] * z)) * sc, cy - (t[1] + s * (m[3] * x + m[4] * y + m[5] * z)) * sc]; };
+        const uq = upr(-10.4, 15), U = tp(M[1], 0, uq[0], uq[1]), L = tp(M[2], 0, -8.6, 15.2), A = tp(M[1], 0, -8.9, 10.6), C = [A[0] + 0.7 * ((U[0] + L[0]) / 2 - A[0]), A[1] + 0.7 * ((U[1] + L[1]) / 2 - A[1])];
+        const dx = C[0] - A[0], dy = C[1] - A[1], ln = Math.hypot(dx, dy) || 1, nx = -dy / ln, ny = dx / ln, wb = 1.9 * HS * ss, wt = 1.05 * HS * ss;
+        g.save(); g.clip(); g.globalAlpha = al;
+        const tg = g.createLinearGradient(A[0], A[1], C[0], C[1]); tg.addColorStop(0, '#6e3a42'); tg.addColorStop(0.55, '#b77c82'); tg.addColorStop(1, '#c79296');
+        g.fillStyle = tg; g.beginPath(); g.moveTo(A[0] + nx * wb, A[1] + ny * wb); g.lineTo(C[0] + nx * wt, C[1] + ny * wt); g.arc(C[0], C[1], wt, Math.atan2(ny, nx), Math.atan2(-ny, -nx), true); g.lineTo(A[0] - nx * wb, A[1] - ny * wb); g.closePath(); g.fill();
+        g.strokeStyle = 'rgba(236,206,206,.35)'; g.lineWidth = wt * 0.5; g.lineCap = 'round'; g.beginPath(); g.moveTo(A[0] + dx * 0.55, A[1] + dy * 0.55); g.lineTo(A[0] + dx * 0.95, A[1] + dy * 0.95); g.stroke();
+        g.restore();
       }
     }
     g.lineWidth = Math.max(0.5, 0.1 * ss);
     for (const q of quads) { const w = q.w; g.fillStyle = g.strokeStyle = q.col; g.beginPath(); g.moveTo(w[q.a * 4], w[q.a * 4 + 1]); g.lineTo(w[q.b * 4], w[q.b * 4 + 1]); g.lineTo(w[q.c * 4], w[q.c * 4 + 1]); g.lineTo(w[q.d * 4], w[q.d * 4 + 1]); g.closePath(); g.fill(); g.stroke(); }
     for (const sg of [1, -1]) {                                  // nostrils
-      const m = M[1].m, t = M[1].t, p = [sg * 1.9 * HS, 2.2 * HS + ch.jaw.x * 0.65, 17.55 * HS], nz = m[6] * sg * 0.25 + m[7] * 0.1 + m[8] * 0.96; if (nz < 0.25) continue;
+      const m = M[1].m, t = M[1].t, uq = upr(2.2, 17.55), p = [sg * 1.9 * HS, uq[0] * HS, uq[1] * HS], nz = m[6] * sg * 0.25 + m[7] * 0.1 + m[8] * 0.96; if (nz < 0.25) continue;
       const X = cx + (t[0] + s * (m[0] * p[0] + m[1] * p[1] + m[2] * p[2])) * sc, Y = cy - (t[1] + s * (m[3] * p[0] + m[4] * p[1] + m[5] * p[2])) * sc, r = 0.44 * HS * ss, sq = clamp(nz * 1.15, 0.35, 1);
       g.save(); g.translate(X, Y); g.scale(sq, 1);                 // a round hole with a soft raised rim, narrowing as the head turns away
       let gr = g.createRadialGradient(0, 0, r * 0.7, 0, 0, r * 1.9); gr.addColorStop(0, 'rgba(255,250,244,' + (0.16 * nz).toFixed(2) + ')'); gr.addColorStop(1, 'rgba(255,250,244,0)'); g.fillStyle = gr; g.beginPath(); g.arc(0, 0, r * 1.9, 0, 7); g.fill();
@@ -1038,7 +1040,7 @@ const Bird = (() => {
     gr = c.createRadialGradient(34, 26, 0, 34, 26, 70); gr.addColorStop(0, 'rgba(255,250,214,.42)'); gr.addColorStop(1, 'rgba(255,250,214,0)'); c.fillStyle = gr; c.fillRect(0, 0, 120, 120);
     bgC = c0;
   }
-  const FOOT = ['#dcc0bb', '#f4e5e0', '#a88682', '#5e4f4c'];
+  const FOOT = ['#c7b4b4', '#e4d8d6', '#948288', '#45403f'];
   function footPt(i) { const an = ch.angle.x * RAD, f = feet[i], s = spec.size, P = [f.u * Math.cos(an), f.u * Math.sin(an) + (f.lift * 3.2 + 0.7 * Math.sin(PI * f.flex)) * s]; if (f.tk <= 0) return P;
     const m = M[0], a = [(i ? 1 : -1) * 4, 15, 4], k = ease(f.tk); return [lerp(P[0], m.t[0] + s * (m.m[0] * a[0] + m.m[1] * a[1] + m.m[2] * a[2]), k), lerp(P[1], m.t[1] + s * (m.m[3] * a[0] + m.m[4] * a[1] + m.m[5] * a[2]), k) + 2.5 * s * Math.sin(PI * k)]; }
   function drawLegs() {                                         // only a short length of leg shows below the belly feathers, angled out to the foot
@@ -1053,14 +1055,14 @@ const Bird = (() => {
   // One front toe, seen from the front: a single jointed finger that comes over the top of the branch, runs down its face and hooks under.
   // It is drawn round the branch's curve (so it shortens at the top and again as it goes under), shaded darker toward the underside,
   // with a crease at each joint and a dark claw curling out of sight.
-  function toe(x0, y0, ang, curl, w) {
-    const tn = Math.tan(ang), top = y0, R = RB - top / 2, A1 = 146 * (0.5 + 0.5 * curl), N = 14, Y = a => top + R * (1 - Math.cos(a * RAD)), X = y => x0 + tn * (y - y0);
-    const hw = t => w * 0.5 * (1 - 0.34 * t * t) * (1 - 0.11 * Math.cos(2 * PI * t * 4) * (t > 0.06 ? 1 : 0));   // padded between the joints, pinched at them
-    const y1 = Y(A1), ye = Y(Math.min(178, A1 + 26));
+  function toe(x0, y0, ang, curl, w, len) {
+    const tn = Math.tan(ang), top = y0, R = RB - top / 2, A1 = 122 * len * (0.5 + 0.5 * curl), N = 14, Y = a => top + R * (1 - Math.cos(a * RAD)), X = y => x0 + tn * (y - y0);
+    const hw = t => w * 0.5 * (1 - 0.42 * t * t) * (1 - 0.15 * Math.cos(2 * PI * t * 3) * (t > 0.06 ? 1 : 0));   // padded between the joints, pinched at them
+    const y1 = Y(A1), ye = Y(Math.min(176, A1 + 24));
     // its shadow on the bark
     g.fillStyle = 'rgba(30,18,14,.2)'; g.beginPath(); g.moveTo(X(top) + hw(0) + 0.9, top + 0.6); for (let i = 1; i <= N; i++) { const t = i / N, y = Y(A1 * t); g.lineTo(X(y) + hw(t) + 1.1, y + 0.5); } for (let i = N; i >= 0; i--) { const t = i / N, y = Y(A1 * t); g.lineTo(X(y) - hw(t) * 0.4, y + 0.5); } g.fill();
     // the claw first, so the toe overlaps its root
-    g.fillStyle = FOOT[3]; g.beginPath(); g.moveTo(X(y1) - hw(1) * 0.85, y1 - 1.4); g.quadraticCurveTo(X(ye) - hw(1) * 0.5, (y1 + ye) / 2 + 0.4, X(ye), ye + 0.5); g.quadraticCurveTo(X(ye) + hw(1) * 0.5, (y1 + ye) / 2 + 0.4, X(y1) + hw(1) * 0.85, y1 - 1.4); g.fill();
+    g.fillStyle = FOOT[3]; g.beginPath(); g.moveTo(X(y1) - hw(1) * 0.85, y1 - 1.4); g.quadraticCurveTo(X(ye) - hw(1) * 0.5, (y1 + ye) / 2 + 0.4, X(ye), ye + 0.5); g.quadraticCurveTo(X(ye) + hw(1) * 0.5, (y1 + ye) / 2 + 0.4, X(y1) + hw(1) * 0.85, y1 - 1.4); g.fill(); g.strokeStyle = 'rgba(190,180,176,.5)'; g.lineWidth = 0.3; g.beginPath(); g.moveTo(X(y1) - hw(1) * 0.45, y1 + 0.3); g.quadraticCurveTo(X(ye) - hw(1) * 0.3, (y1 + ye) / 2 + 0.3, X(ye) - 0.1, ye); g.stroke();
     // the toe
     g.beginPath(); g.moveTo(X(top) - hw(0), top); for (let i = 1; i <= N; i++) { const t = i / N, y = Y(A1 * t); g.lineTo(X(y) - hw(t), y); }
     g.quadraticCurveTo(X(y1), y1 + hw(1) * 1.1, X(y1) + hw(1), y1); for (let i = N - 1; i >= 0; i--) { const t = i / N, y = Y(A1 * t); g.lineTo(X(y) + hw(t), y); } g.quadraticCurveTo(X(top), top - hw(0) * 0.9, X(top) - hw(0), top);
@@ -1071,7 +1073,7 @@ const Bird = (() => {
     const sg = g.createLinearGradient(X((top + y1) / 2) - w * 0.5, 0, X((top + y1) / 2) + w * 0.5, 0); sg.addColorStop(0, 'rgba(255,246,240,.28)'); sg.addColorStop(0.45, 'rgba(255,246,240,0)'); sg.addColorStop(1, 'rgba(96,60,60,.42)');
     g.fillStyle = sg; g.fillRect(x0 - w * 2 - 14, top - 2, w * 4 + 28, y1 - top + 6);          // round across its width
     g.strokeStyle = 'rgba(120,78,76,.6)'; g.lineWidth = 0.34; g.lineCap = 'round';
-    for (let k = 1; k < 16; k++) { const t = k / 16, main = k % 4 === 0, y = Y(A1 * t), h = hw(t), bow = 0.75 * Math.cos(A1 * t * RAD) ; g.strokeStyle = main ? 'rgba(112,70,70,.7)' : 'rgba(128,88,86,.26)'; g.lineWidth = main ? 0.4 : 0.22; g.beginPath(); g.moveTo(X(y) - h, y); g.quadraticCurveTo(X(y), y - bow * 1.6, X(y) + h, y); g.stroke(); }   // joint creases, bowed the way the toe bends
+    for (let k = 1; k < 18; k++) { const t = k / 18, main = k % 6 === 0, y = Y(A1 * t), h = hw(t), bow = 0.75 * Math.cos(A1 * t * RAD) ; g.strokeStyle = main ? 'rgba(104,78,82,.5)' : 'rgba(120,96,98,.16)'; g.lineWidth = main ? 0.4 : 0.22; g.beginPath(); g.moveTo(X(y) - h, y); g.quadraticCurveTo(X(y), y - bow * 1.6, X(y) + h, y); g.stroke(); }   // joint creases, bowed the way the toe bends
     g.restore();
   }
   function drawToes() {                                         // the front pair of toes on each foot lie side by side over the top of the branch (the back pair is hidden behind it)
@@ -1080,9 +1082,9 @@ const Bird = (() => {
       const F = footPt(i), f = feet[i], sd = i ? 1 : -1, sq = 0.09 * Math.sin(PI * f.grip), fx = k => 0.34 * Math.sin(PI * clamp(f.flex * 1.5 - k * 0.5, 0, 1)), curl = 1 - 0.5 * f.lift + sq - fx(0), curl2 = 1 - 0.5 * f.lift + sq - fx(1), tks = 1 - 0.45 * ease(f.tk);
       g.setTransform(Math.cos(an) * s * tks, -Math.sin(an) * s * tks, Math.sin(an) * s * tks, Math.cos(an) * s * tks, cx + F[0] * sc, cy - F[1] * sc);
       const open = 0.16 * (1 - Math.min(curl, curl2)) + 0.3 * f.lift;                       // the toes part a little as the foot opens
-      toe(-1.7 - open + sd * 0.3, -1.5, -0.04 - open * 0.3 + sd * 0.05, curl, 3.6); toe(1.7 + open + sd * 0.3, -1.5, 0.04 + open * 0.3 + sd * 0.05, curl2, 3.6);
+      toe(-1.3 - open + sd * 0.3, -1.5, -0.24 - open * 0.3 + sd * 0.05, curl, 3.0, sd < 0 ? 1 : 0.8); toe(1.3 + open + sd * 0.3, -1.5, 0.24 + open * 0.3 + sd * 0.05, curl2, 3.0, sd < 0 ? 0.8 : 1);
       const gr = g.createRadialGradient(sd * 0.3 - 0.6, -2.2, 0, sd * 0.3, -1.4, 3.6); gr.addColorStop(0, FOOT[1]); gr.addColorStop(0.6, FOOT[0]); gr.addColorStop(1, FOOT[2]);
-      g.fillStyle = gr; g.beginPath(); g.ellipse(sd * 0.3, -1.9, 3.3, 1.9, 0, 0, 7); g.fill();     // the pad where the toes meet, on the crest of the branch
+      g.fillStyle = gr; g.beginPath(); g.ellipse(sd * 0.3, -1.9, 3.1, 1.7, 0, 0, 7); g.fill();     // the pad where the toes meet, on the crest of the branch
     }
   }
   function draw() {
